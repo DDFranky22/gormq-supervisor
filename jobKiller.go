@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"text/tabwriter"
 	"time"
@@ -108,14 +109,14 @@ func (jobKiller *JobKiller) returnStatus() string {
 func (jobKiller *JobKiller) returnStatusOf(jobName string) string {
 	var b bytes.Buffer
 	writer := tabwriter.NewWriter(&b, 10, 0, 2, ' ', tabwriter.Debug)
-	fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\n", "Job", "Groups", "Status", "PID", "User", "Sleep", "Last Exec")
+	fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", "Job", "Groups", "Status", "PID", "User", "Sleep", "Max sleep", "Last Exec")
 	found := false
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		job := jobKiller.Jobs[i]
 		if job.Name == jobName {
 			found = true
 			jobStatus := job.getStatus()
-			fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\n", jobStatus["Name"], jobStatus["Groups"], jobStatus["Status"], jobStatus["PID"], jobStatus["User"], jobStatus["Sleep"], jobStatus["LastExec"])
+			fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", jobStatus["Name"], jobStatus["Groups"], jobStatus["Status"], jobStatus["PID"], jobStatus["User"], jobStatus["Sleep"], jobStatus["MaxSleep"], jobStatus["LastExec"])
 			break
 		}
 	}
@@ -125,4 +126,22 @@ func (jobKiller *JobKiller) returnStatusOf(jobName string) string {
 		return b.String()
 	}
 	return fmt.Sprintf("Can't find job called %v\n", jobName)
+}
+
+func (jobKiller *JobKiller) findJobByName(jobName string) (*Job, error) {
+	found := false
+	var jobToReturn *Job
+	for i := 0; i < len(jobKiller.Jobs); i++ {
+		job := jobKiller.Jobs[i]
+		if job.Name == jobName {
+			found = true
+			jobToReturn = job
+			break
+		}
+	}
+
+	if found {
+		return jobToReturn, nil
+	}
+	return nil, errors.New("Cannot find job with provided name")
 }

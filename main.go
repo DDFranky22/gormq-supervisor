@@ -183,6 +183,21 @@ func createResponse(command string) string {
 	case "kill-all":
 		jobKiller.killAll()
 		return jobKiller.returnStatus()
+	case "update-job":
+		if len(inputCommand) < 4 {
+			return "In order to update the job property you need to pass the job name, the property that you need to update and the new value, all separated by space."
+		}
+		jobName := inputCommand[1]
+		job, err := jobKiller.findJobByName(jobName)
+		if err != nil {
+			return err.Error()
+		}
+		updateJobArguments := inputCommand[2:]
+		err = job.updateProperties(updateJobArguments)
+		if err != nil {
+			return err.Error()
+		}
+		return "Job updated successfully. Current status: \n" + jobKiller.returnStatusOf(jobName)
 	default:
 		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all\n"
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -59,6 +60,7 @@ func (job *Job) getStatus() map[string]interface{} {
 	statusContainer["PID"] = job.PID
 	statusContainer["User"] = job.UserId
 	statusContainer["Sleep"] = job.CurrentSleepTime
+	statusContainer["MaxSleep"] = job.MaxSleep
 	statusContainer["LastExec"] = time.Unix(job.StartedAt, 0)
 	return statusContainer
 }
@@ -388,4 +390,67 @@ func (job *Job) returnUserGroups() (uint32, []uint32, error) {
 		return groups[0], groups, nil
 	}
 	return 0, groups, nil
+}
+
+func (job *Job) updateProperties(properties []string) error {
+	propertyToUpdate := properties[0]
+	switch propertyToUpdate {
+	case "min_messages":
+		newMinMessages, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newMinMessages < 0 {
+			return errors.New("You cannot set a negative value")
+		}
+		job.MinMessages = newMinMessages
+	case "sleep_time":
+		newSleepTime, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newSleepTime < 0 {
+			return errors.New("You cannot set a negative value")
+		}
+		job.SleepTime = newSleepTime
+	case "sleep_increment":
+		newSleepIncrement, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newSleepIncrement < 0 {
+			return errors.New("You cannot set a negative value")
+		}
+		job.SleepIncrement = newSleepIncrement
+	case "max_sleep":
+		newMaxSleep, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newMaxSleep < 0 {
+			return errors.New("You cannot set a negative value")
+		}
+		job.MaxSleep = newMaxSleep
+	case "spawn":
+		newSpawn, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newSpawn <= 0 {
+			return errors.New("You cannot set a negative value or 0")
+		}
+		job.Spawn = newSpawn
+	case "max_execution":
+		newMaxExecution, err := strconv.Atoi(properties[1])
+		if err != nil {
+			return err
+		}
+		if newMaxExecution < 0 {
+			return errors.New("You cannot set a negative value")
+		}
+		job.MaxExecution = int64(newMaxExecution)
+	default:
+		return errors.New("Property not supported. The supported properties are: min_messages | sleep_time | sleep_increment | max_sleep | max_execution | spawn")
+	}
+	return nil
 }
