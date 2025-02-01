@@ -201,6 +201,7 @@ start() {
 
 # Restart the service
 stop() {
+	cd $workingDirectory
 	echo -n "Stopping $app: "
 	echo ""
 	./$app --operation service --option "kill-all"
@@ -211,6 +212,7 @@ stop() {
 
 # Reload the service
 reload() {
+	cd $workingDirectory
 	status $app > /dev/null
 	# If application is running
 	if [[ $? -eq 0 ]]; then
@@ -233,38 +235,47 @@ reload() {
 }
 
 help() {
+	cd $workingDirectory
 	./$app --operation service --option "help"
 }
 
 applicationStatus() {
+	cd $workingDirectory
 	./$app --operation service --option "status"
 }
 
 statusOf() {
+	cd $workingDirectory
 	./$app --operation service --option "status-of $1"
 }
 
 pause() {
+	cd $workingDirectory
 	./$app --operation service --option "pause $1"
 }
 
 pauseGroup() {
+	cd $workingDirectory
 	./$app --operation service --option "pause-group $1"
 }
 
 pauseAll() {
+	cd $workingDirectory
 	./$app --operation service --option "pause-all"
 }
 
 unpause() {
+	cd $workingDirectory
 	./$app --operation service --option "unpause $1"
 }
 
 unpauseGroup() {
+	cd $workingDirectory
 	./$app --operation service --option "unpause-group $1"
 }
 
 unpauseAll() {
+	cd $workingDirectory
 	./$app --operation service --option "unpause-all"
 }
 
