@@ -279,6 +279,11 @@ unpauseAll() {
 	./$app --operation service --option "unpause-all"
 }
 
+updateJob() {
+	cd $workingDirectory
+	./$app --operation service --option "update-job $1 $2 $3"
+}
+
 killAll() {
 	stop
 }
@@ -329,6 +334,9 @@ case "$1" in
 		;;
 	unpause-all)
 		unpauseAll
+		;;
+	update-job)
+		updateJob $2 $3 $4
 		;;
 	kill-all)
 		killAll
