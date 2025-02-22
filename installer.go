@@ -283,6 +283,11 @@ killAll() {
 	stop
 }
 
+version() {
+	cd $workingDirectory
+	./$app --operation service --option "version"
+}
+
 # Main logic
 case "$1" in
 	start)
@@ -328,8 +333,11 @@ case "$1" in
 	kill-all)
 		killAll
 		;;
+	version)
+		version
+		;;
 	*)
-		echo $"Usage: $0 {start | stop | restart | reload | status | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all}"
+		echo $"Usage: $0 {start | stop | restart | reload | status | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version}"
 		exit 1
 esac
 exit 0

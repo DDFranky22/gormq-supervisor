@@ -34,6 +34,8 @@ var jobKiller JobKiller
 var wg sync.WaitGroup
 var log Logger
 
+const VERSION = "v0.2"
+
 var mainContext context.Context
 
 func main() {
@@ -183,8 +185,10 @@ func createResponse(command string) string {
 	case "kill-all":
 		jobKiller.killAll()
 		return jobKiller.returnStatus()
+	case "version":
+		return VERSION
 	default:
-		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all\n"
+		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version\n"
 	}
 }
 
