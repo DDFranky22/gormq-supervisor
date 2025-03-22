@@ -16,7 +16,7 @@ import (
 var (
 	configFile           = flag.String("config", "./gonc-config.json", "path of configuration file")
 	operationInstruction = flag.String("operation", "", "Available operations: install | uninstall | service")
-	serviceCommand       = flag.String("option", "", "Available options: status | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all")
+	serviceCommand       = flag.String("option", "", "Available options: status | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version")
 	logPath              = flag.String("log", "./", "path where to store logs")
 	port                 = flag.String("port", "9000", "Port where the server should listen")
 	testing              = flag.Bool("testing", false, "")
@@ -34,7 +34,7 @@ var jobKiller JobKiller
 var wg sync.WaitGroup
 var log Logger
 
-const VERSION = "v0.2"
+const VERSION = "v0.1"
 
 var mainContext context.Context
 
