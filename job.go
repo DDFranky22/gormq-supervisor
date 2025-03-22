@@ -87,10 +87,12 @@ func (job *Job) executeCommand(wg *sync.WaitGroup) {
 	runningUserId, err := job.returnUserId()
 	if err != nil {
 		log.Printf("For job: \"%v\" could not recover user \"%v\". Cannot be executed\n", job.Name, job.UserId)
+        job.Stop = true
 	}
 	runningUserMainGroup, runningUserGroups, err := job.returnUserGroups()
 	if err != nil {
 		log.Printf("For job: \"%v\" could not recover groups for user \"%v\". Cannot be executed\n", job.Name, job.UserId)
+        job.Stop = true
 	}
 LOOP:
 	for {
@@ -116,8 +118,8 @@ LOOP:
 				stringCommand := strings.Fields(job.Command)
 				app, minusApp := stringCommand[0], stringCommand[1:]
 				commandContext := context.Background()
+				var cancelCommandContext context.CancelFunc
 				if job.MaxExecution > 0 {
-					var cancelCommandContext context.CancelFunc
 					commandContext, cancelCommandContext = context.WithTimeout(context.Background(), time.Duration(job.MaxExecution)*time.Second)
 					defer cancelCommandContext()
 				}
@@ -163,7 +165,9 @@ LOOP:
 				if commandContext.Err() == context.DeadlineExceeded {
 					var deadlineOutput []string
 					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, job.MaxExecution)))
-				}
+				} else if job.MaxExecution > 0 {
+                    cancelCommandContext()
+                }
 				job.PID = 0
 				job.CurrentSleepTime = job.SleepTime
 			}
