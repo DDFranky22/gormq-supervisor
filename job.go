@@ -351,14 +351,14 @@ func (job *Job) clone(numberItem int) Job {
 }
 
 func (job *Job) returnUserId() (uint32, error) {
-	var runningUserId = 0
+	var runningUserId uint64 = 0
 	if job.UserId != "" {
 		findUserCommand := exec.Command("id", "-u", job.UserId)
 		output, err := findUserCommand.Output()
 		if err != nil {
 			return 0, err
 		}
-		runningUserId, err = strconv.Atoi(strings.TrimSpace(string(output)))
+		runningUserId, err = strconv.ParseUint(strings.TrimSpace(string(output)), 10, 32)
 		if err != nil {
 			return 0, err
 		}
@@ -379,7 +379,7 @@ func (job *Job) returnUserGroups() (uint32, []uint32, error) {
 			return 0, []uint32{}, err
 		}
 		for _, value := range returnedGroups {
-			convertedValue, err := strconv.Atoi(value)
+			convertedValue, err := strconv.ParseUint(value, 10, 32)
 			if err != nil {
 				return 0, []uint32{}, err
 			}
