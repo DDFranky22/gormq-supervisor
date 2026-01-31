@@ -74,7 +74,12 @@ func main() {
 		}()
 		log.Println("loading configuration")
 
-		configuration := createConfig(*configFile)
+		configuration, err := createConfig(*configFile)
+		if err != nil {
+			log.Printf("Failed to load configuration: %v\n", err)
+			fmt.Printf("Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
 		log.Println("configuration loaded")
 
 		log.Println("Starting workers")
@@ -93,7 +98,9 @@ func worker(configuration ConfigFile) {
 	for j := 0; j < len(configuration.Jobs); j++ {
 		connectionConfig, err := configuration.getConnectionByName(configuration.Jobs[j].ConnectionName)
 		if err != nil {
-			panic(err)
+			log.Printf("Skipping job %q: connection %q not found in config\n",
+				configuration.Jobs[j].Name, configuration.Jobs[j].ConnectionName)
+			continue
 		}
 
 		wg.Add(1)
@@ -154,8 +161,14 @@ func handleRequest(conn net.Conn) {
 
 func createResponse(command string) string {
 	inputCommand := strings.Fields(command)
+	if len(inputCommand) == 0 {
+		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version\n"
+	}
 	action := inputCommand[0]
-	arguments := strings.Join(inputCommand[1:], " ")
+	arguments := ""
+	if len(inputCommand) > 1 {
+		arguments = strings.Join(inputCommand[1:], " ")
+	}
 	switch action {
 	case "status":
 		return jobKiller.returnStatus()

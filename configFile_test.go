@@ -121,7 +121,10 @@ func TestCreateConfig_ValidConfig(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	config, err := createConfig(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	if len(config.ConnectionConfigs) != 1 {
 		t.Errorf("Expected 1 connection, got %d", len(config.ConnectionConfigs))
@@ -158,7 +161,10 @@ func TestCreateConfig_WithSpawn(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	config, err := createConfig(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	// Original job + 2 clones = 3 total
 	if len(config.Jobs) != 3 {
@@ -219,7 +225,10 @@ func TestCreateConfig_EnvVariableReplacement(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	config, err := createConfig(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	if config.ConnectionConfigs[0].Username != "envuser" {
 		t.Errorf("Expected username 'envuser', got '%s'", config.ConnectionConfigs[0].Username)
@@ -241,14 +250,19 @@ func TestCreateConfig_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	_, err = createConfig(configPath)
 
-	// Should return empty config for invalid JSON
-	if len(config.ConnectionConfigs) != 0 {
-		t.Errorf("Expected 0 connections for invalid JSON, got %d", len(config.ConnectionConfigs))
+	// Should return error for invalid JSON
+	if err == nil {
+		t.Error("Expected error for invalid JSON")
 	}
-	if len(config.Jobs) != 0 {
-		t.Errorf("Expected 0 jobs for invalid JSON, got %d", len(config.Jobs))
+}
+
+func TestCreateConfig_MissingFile(t *testing.T) {
+	_, err := createConfig("/nonexistent/path/config.json")
+
+	if err == nil {
+		t.Error("Expected error for missing file")
 	}
 }
 
@@ -279,7 +293,10 @@ func TestCreateConfig_MultipleSpawnedJobs(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	config, err := createConfig(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	// job_a spawns 2 (job_a_0, job_a_1), job_b spawns 1 = 3 total
 	if len(config.Jobs) != 3 {
@@ -320,7 +337,10 @@ func TestCreateConfig_PreservesJobProperties(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config := createConfig(configPath)
+	config, err := createConfig(configPath)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 
 	if len(config.Jobs) != 1 {
 		t.Fatalf("Expected 1 job, got %d", len(config.Jobs))

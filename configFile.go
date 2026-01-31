@@ -23,18 +23,23 @@ func (configFile *ConfigFile) getConnectionByName(name string) (*ConnectionConfi
 	return nil, errors.New("missing connection in config")
 }
 
-func createConfig(configFile string) ConfigFile {
+func createConfig(configFile string) (ConfigFile, error) {
+	var configuration ConfigFile
+
 	jsonFile, err := os.Open(configFile)
 	if err != nil {
-		fmt.Println(err)
+		return configuration, fmt.Errorf("failed to open config file %s: %w", configFile, err)
 	}
 	defer jsonFile.Close()
 
-	byteValue, _ := io.ReadAll(jsonFile)
+	byteValue, err := io.ReadAll(jsonFile)
+	if err != nil {
+		return configuration, fmt.Errorf("failed to read config file %s: %w", configFile, err)
+	}
 
-	var configuration ConfigFile
-
-	json.Unmarshal(byteValue, &configuration)
+	if err := json.Unmarshal(byteValue, &configuration); err != nil {
+		return configuration, fmt.Errorf("failed to parse config file %s: %w", configFile, err)
+	}
 
 	for index := 0; index < len(configuration.ConnectionConfigs); index++ {
 		configuration.ConnectionConfigs[index].replaceEnvVariables()
@@ -51,5 +56,5 @@ func createConfig(configFile string) ConfigFile {
 		}
 	}
 
-	return configuration
+	return configuration, nil
 }
