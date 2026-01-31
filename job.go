@@ -45,6 +45,7 @@ type Job struct {
 	StartedAt         int64
 	OwnContext        context.Context
 	OwnContextCancel  context.CancelFunc
+	mu                sync.RWMutex // protects concurrent access to mutable fields
 }
 
 const STATUS_SLEEP = 0
@@ -52,11 +53,165 @@ const STATUS_RUNNING = 1
 const STATUS_PAUSED = 2
 const STATUS_TERMINATED = 3
 
+// Thread-safe getters and setters for mutable fields
+
+func (job *Job) GetStatus() int16 {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.Status
+}
+
+func (job *Job) SetStatus(status int16) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.Status = status
+}
+
+func (job *Job) GetPause() bool {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.Pause
+}
+
+func (job *Job) SetPause(pause bool) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.Pause = pause
+}
+
+func (job *Job) GetStop() bool {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.Stop
+}
+
+func (job *Job) SetStop(stop bool) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.Stop = stop
+}
+
+func (job *Job) GetPID() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.PID
+}
+
+func (job *Job) SetPID(pid int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.PID = pid
+}
+
+func (job *Job) GetCurrentSleepTime() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.CurrentSleepTime
+}
+
+func (job *Job) SetCurrentSleepTime(sleepTime int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.CurrentSleepTime = sleepTime
+}
+
+func (job *Job) GetStartedAt() int64 {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.StartedAt
+}
+
+func (job *Job) SetStartedAt(startedAt int64) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.StartedAt = startedAt
+}
+
+func (job *Job) GetCmdExecutable() *exec.Cmd {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.CmdExecutable
+}
+
+func (job *Job) SetCmdExecutable(cmd *exec.Cmd) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.CmdExecutable = cmd
+}
+
+func (job *Job) GetMinMessages() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.MinMessages
+}
+
+func (job *Job) GetSleepTime() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.SleepTime
+}
+
+func (job *Job) GetSleepIncrement() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.SleepIncrement
+}
+
+func (job *Job) GetMaxSleep() int {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.MaxSleep
+}
+
+func (job *Job) GetMaxExecution() int64 {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.MaxExecution
+}
+
+func (job *Job) SetMinMessages(minMessages int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.MinMessages = minMessages
+}
+
+func (job *Job) SetSleepTime(sleepTime int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.SleepTime = sleepTime
+}
+
+func (job *Job) SetSleepIncrement(sleepIncrement int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.SleepIncrement = sleepIncrement
+}
+
+func (job *Job) SetMaxSleep(maxSleep int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.MaxSleep = maxSleep
+}
+
+func (job *Job) SetSpawn(spawn int) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.Spawn = spawn
+}
+
+func (job *Job) SetMaxExecution(maxExecution int64) {
+	job.mu.Lock()
+	defer job.mu.Unlock()
+	job.MaxExecution = maxExecution
+}
+
 func (job *Job) getStatus() map[string]interface{} {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
 	statusContainer := make(map[string]interface{})
 	statusContainer["Name"] = job.Name
 	statusContainer["Groups"] = job.Groups
-	statusContainer["Status"] = job.getStatusName()
+	statusContainer["Status"] = job.getStatusNameLocked()
 	statusContainer["PID"] = job.PID
 	statusContainer["User"] = job.UserId
 	statusContainer["Sleep"] = job.CurrentSleepTime
@@ -65,7 +220,8 @@ func (job *Job) getStatus() map[string]interface{} {
 	return statusContainer
 }
 
-func (job *Job) getStatusName() string {
+// getStatusNameLocked returns status name - caller must hold at least RLock
+func (job *Job) getStatusNameLocked() string {
 	switch job.Status {
 	case STATUS_SLEEP:
 		return "SLEEPING"
@@ -80,6 +236,12 @@ func (job *Job) getStatusName() string {
 	}
 }
 
+func (job *Job) getStatusName() string {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.getStatusNameLocked()
+}
+
 func (job *Job) executeCommand(wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Println("Starting Job: " + job.Name)
@@ -87,40 +249,41 @@ func (job *Job) executeCommand(wg *sync.WaitGroup) {
 	runningUserId, err := job.returnUserId()
 	if err != nil {
 		log.Printf("For job: \"%v\" could not recover user \"%v\". Cannot be executed\n", job.Name, job.UserId)
-        job.Stop = true
+		job.SetStop(true)
 	}
 	runningUserMainGroup, runningUserGroups, err := job.returnUserGroups()
 	if err != nil {
 		log.Printf("For job: \"%v\" could not recover groups for user \"%v\". Cannot be executed\n", job.Name, job.UserId)
-        job.Stop = true
+		job.SetStop(true)
 	}
 LOOP:
 	for {
-		if job.Stop {
+		if job.GetStop() {
 			break LOOP
 		}
 		if !job.checkIfStillActive(job.MainPid) {
 			break LOOP
 		}
-		if job.Pause {
-			if job.Status != STATUS_PAUSED {
-				job.Status = STATUS_PAUSED
-				job.CurrentSleepTime = job.SleepTime
+		if job.GetPause() {
+			if job.GetStatus() != STATUS_PAUSED {
+				job.SetStatus(STATUS_PAUSED)
+				job.SetCurrentSleepTime(job.GetSleepTime())
 			}
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		job.Status = STATUS_SLEEP
+		job.SetStatus(STATUS_SLEEP)
 		queueMessages, execute := rmqc.getMessages(job)
 		if execute {
-			if job.MinMessages <= queueMessages {
-				job.Status = STATUS_RUNNING
+			if job.GetMinMessages() <= queueMessages {
+				job.SetStatus(STATUS_RUNNING)
 				stringCommand := strings.Fields(job.Command)
 				app, minusApp := stringCommand[0], stringCommand[1:]
 				commandContext := context.Background()
 				var cancelCommandContext context.CancelFunc
-				if job.MaxExecution > 0 {
-					commandContext, cancelCommandContext = context.WithTimeout(context.Background(), time.Duration(job.MaxExecution)*time.Second)
+				maxExecution := job.GetMaxExecution()
+				if maxExecution > 0 {
+					commandContext, cancelCommandContext = context.WithTimeout(context.Background(), time.Duration(maxExecution)*time.Second)
 					defer cancelCommandContext()
 				}
 				cmd := exec.CommandContext(commandContext, app, minusApp...)
@@ -141,7 +304,7 @@ LOOP:
 						NoSetGroups: false,
 					}
 				}
-				job.CmdExecutable = cmd
+				job.SetCmdExecutable(cmd)
 				stdout, _ := cmd.StdoutPipe()
 				stderr, _ := cmd.StderrPipe()
 				startErr := cmd.Start()
@@ -150,8 +313,8 @@ LOOP:
 					break LOOP
 				}
 				now := time.Now()
-				job.StartedAt = now.Unix()
-				job.PID = cmd.Process.Pid
+				job.SetStartedAt(now.Unix())
+				job.SetPID(cmd.Process.Pid)
 				if job.ErrorLogPath != "" {
 					scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
 					var output []string
@@ -164,22 +327,25 @@ LOOP:
 				cmd.Wait()
 				if commandContext.Err() == context.DeadlineExceeded {
 					var deadlineOutput []string
-					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, job.MaxExecution)))
-				} else if job.MaxExecution > 0 {
-                    cancelCommandContext()
-                }
-				job.PID = 0
-				job.CurrentSleepTime = job.SleepTime
+					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, maxExecution)))
+				} else if maxExecution > 0 {
+					cancelCommandContext()
+				}
+				job.SetPID(0)
+				job.SetCurrentSleepTime(job.GetSleepTime())
 			}
 		}
 		job.Sleep(job.OwnContext)
-		newSleepTime := job.CurrentSleepTime + job.SleepIncrement
-		if newSleepTime >= job.MaxSleep {
-			newSleepTime = job.MaxSleep
+		currentSleep := job.GetCurrentSleepTime()
+		sleepIncrement := job.GetSleepIncrement()
+		maxSleep := job.GetMaxSleep()
+		newSleepTime := currentSleep + sleepIncrement
+		if newSleepTime >= maxSleep {
+			newSleepTime = maxSleep
 		}
-		job.CurrentSleepTime = newSleepTime
+		job.SetCurrentSleepTime(newSleepTime)
 	}
-	job.Status = STATUS_TERMINATED
+	job.SetStatus(STATUS_TERMINATED)
 	log.Println("Ending Job: " + job.Name)
 }
 
@@ -311,7 +477,7 @@ func (job *Job) checkIfStillActive(pid int) bool {
 }
 
 func (job *Job) Sleep(ctx context.Context) error {
-	var timer = time.NewTimer(time.Duration(job.CurrentSleepTime) * time.Second)
+	var timer = time.NewTimer(time.Duration(job.GetCurrentSleepTime()) * time.Second)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -322,33 +488,23 @@ func (job *Job) Sleep(ctx context.Context) error {
 
 func (job *Job) clone(numberItem int) Job {
 	newJob := Job{
-		job.Name + "_" + strconv.Itoa(numberItem),
-		job.Groups,
-		job.SleepTime,
-		job.SleepIncrement,
-		job.MaxSleep,
-		job.MinMessages,
-		job.WorkingDir,
-		job.UserId,
-		job.Command,
-		1,
-		job.ConnectionName,
-		job.Queue,
-		job.ErrorLogPath,
-		job.ErrorLogMaxKBSize,
-		job.ErrorLogMaxFiles,
-		job.MaxExecution,
-		0,
-		0,
-		0,
-		ConnectionConfig{},
-		nil,
-		0,
-		false,
-		false,
-		0,
-		nil,
-		nil,
+		Name:              job.Name + "_" + strconv.Itoa(numberItem),
+		Groups:            job.Groups,
+		SleepTime:         job.SleepTime,
+		SleepIncrement:    job.SleepIncrement,
+		MaxSleep:          job.MaxSleep,
+		MinMessages:       job.MinMessages,
+		WorkingDir:        job.WorkingDir,
+		UserId:            job.UserId,
+		Command:           job.Command,
+		Spawn:             1,
+		ConnectionName:    job.ConnectionName,
+		Queue:             job.Queue,
+		ErrorLogPath:      job.ErrorLogPath,
+		ErrorLogMaxKBSize: job.ErrorLogMaxKBSize,
+		ErrorLogMaxFiles:  job.ErrorLogMaxFiles,
+		MaxExecution:      job.MaxExecution,
+		// mu is zero-initialized automatically (new mutex)
 	}
 
 	return newJob
@@ -407,7 +563,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newMinMessages < 0 {
 			return errors.New("You cannot set a negative value")
 		}
-		job.MinMessages = newMinMessages
+		job.SetMinMessages(newMinMessages)
 	case "sleep_time":
 		newSleepTime, err := strconv.Atoi(properties[1])
 		if err != nil {
@@ -416,7 +572,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newSleepTime < 0 {
 			return errors.New("You cannot set a negative value")
 		}
-		job.SleepTime = newSleepTime
+		job.SetSleepTime(newSleepTime)
 	case "sleep_increment":
 		newSleepIncrement, err := strconv.Atoi(properties[1])
 		if err != nil {
@@ -425,7 +581,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newSleepIncrement < 0 {
 			return errors.New("You cannot set a negative value")
 		}
-		job.SleepIncrement = newSleepIncrement
+		job.SetSleepIncrement(newSleepIncrement)
 	case "max_sleep":
 		newMaxSleep, err := strconv.Atoi(properties[1])
 		if err != nil {
@@ -434,7 +590,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newMaxSleep < 0 {
 			return errors.New("You cannot set a negative value")
 		}
-		job.MaxSleep = newMaxSleep
+		job.SetMaxSleep(newMaxSleep)
 	case "spawn":
 		newSpawn, err := strconv.Atoi(properties[1])
 		if err != nil {
@@ -443,7 +599,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newSpawn <= 0 {
 			return errors.New("You cannot set a negative value or 0")
 		}
-		job.Spawn = newSpawn
+		job.SetSpawn(newSpawn)
 	case "max_execution":
 		newMaxExecution, err := strconv.Atoi(properties[1])
 		if err != nil {
@@ -452,7 +608,7 @@ func (job *Job) updateProperties(properties []string) error {
 		if newMaxExecution < 0 {
 			return errors.New("You cannot set a negative value")
 		}
-		job.MaxExecution = int64(newMaxExecution)
+		job.SetMaxExecution(int64(newMaxExecution))
 	default:
 		return errors.New("Property not supported. The supported properties are: min_messages | sleep_time | sleep_increment | max_sleep | max_execution | spawn")
 	}
