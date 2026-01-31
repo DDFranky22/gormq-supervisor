@@ -58,7 +58,7 @@ func (client *Client) getQueue(Vhost string, QueueName string) (*QueueInfo, erro
 }
 
 func (client *Client) getMessages(job *Job) (int, bool) {
-	if *testing {
+	if *testMode {
 		return 1, true
 	}
 	q, err := client.getQueue(job.ConnectionConfig.Vhost, job.Queue)

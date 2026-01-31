@@ -1,0 +1,9 @@
+{
+	"connections": [
+		{
+			"name": "broken",
+			"endpoint": "http://localhost:15672"
+			// Missing closing brace and comma - malformed JSON
+		}
+	],
+	"jobs": [
