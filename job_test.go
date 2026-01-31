@@ -509,3 +509,19 @@ func TestJob_UpdateProperties_SpawnNegative(t *testing.T) {
 		t.Error("Expected error for negative spawn")
 	}
 }
+
+func TestJob_UpdateProperties_InsufficientArguments(t *testing.T) {
+	job := &Job{}
+
+	// Empty slice
+	err := job.updateProperties([]string{})
+	if err == nil {
+		t.Error("Expected error for empty arguments")
+	}
+
+	// Only property name, no value
+	err = job.updateProperties([]string{"min_messages"})
+	if err == nil {
+		t.Error("Expected error for missing value")
+	}
+}

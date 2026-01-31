@@ -59,7 +59,7 @@ func main() {
 			os.Exit(0)
 		}
 	} else {
-		log = Logger{*logPath + "goncsupervisorlogs.txt"}
+		log = Logger{Path: *logPath + "goncsupervisorlogs.txt"}
 		defer log.Close()
 
 		sigs := make(chan os.Signal, 1)
@@ -130,15 +130,25 @@ func server() {
 	// Listen for incoming connections.
 	l, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
-		fmt.Println("Error listening to port:", *port, err.Error())
+		log.Printf("Error listening to port %s: %v\n", *port, err)
+		fmt.Printf("Error listening to port %s: %v\n", *port, err)
+		return
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
+
+	log.Printf("Server listening on port %s\n", *port)
+
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			// Check if the error is due to listener being closed
+			if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+				return
+			}
+			log.Printf("Error accepting connection: %v\n", err)
+			continue
 		}
 		// Handle connections in a new goroutine.
 		go handleRequest(conn)
@@ -223,19 +233,24 @@ func createResponse(command string) string {
 func commandLineService(command string) {
 	endpoint := "localhost:" + *port
 	connection, err := net.Dial("tcp", endpoint)
+	if err != nil {
+		fmt.Printf("Failed to connect to service at %s: %v\n", endpoint, err)
+		return
+	}
 	defer connection.Close()
 
+	_, err = connection.Write([]byte(command))
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		connection.Write([]byte(command))
-		buffer := make([]byte, 1024)
-		_, err = connection.Read(buffer)
-
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			fmt.Println(string(buffer[:]))
-		}
+		fmt.Printf("Failed to send command: %v\n", err)
+		return
 	}
+
+	buffer := make([]byte, 4096)
+	n, err := connection.Read(buffer)
+	if err != nil {
+		fmt.Printf("Failed to read response: %v\n", err)
+		return
+	}
+
+	fmt.Print(string(buffer[:n]))
 }

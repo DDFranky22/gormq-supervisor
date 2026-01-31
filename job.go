@@ -553,6 +553,9 @@ func (job *Job) returnUserGroups() (uint32, []uint32, error) {
 }
 
 func (job *Job) updateProperties(properties []string) error {
+	if len(properties) < 2 {
+		return errors.New("updateProperties requires at least 2 arguments: property name and value")
+	}
 	propertyToUpdate := properties[0]
 	switch propertyToUpdate {
 	case "min_messages":
