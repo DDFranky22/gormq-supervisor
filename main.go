@@ -19,7 +19,7 @@ var (
 	serviceCommand       = flag.String("option", "", "Available options: status | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version")
 	logPath              = flag.String("log", "./", "path where to store logs")
 	port                 = flag.String("port", "9000", "Port where the server should listen")
-	testing              = flag.Bool("testing", false, "")
+	testMode             = flag.Bool("testing", false, "")
 	installMethod        = flag.String("installMethod", "servicectl", "Install method (servicectl | initd)")
 	silentInstall        = flag.Bool("silent", false, "Install with default values")
 )
@@ -59,7 +59,7 @@ func main() {
 			os.Exit(0)
 		}
 	} else {
-		log = Logger{*logPath + "goncsupervisorlogs.txt"}
+		log = Logger{Path: *logPath + "goncsupervisorlogs.txt"}
 		defer log.Close()
 
 		sigs := make(chan os.Signal, 1)
@@ -74,7 +74,12 @@ func main() {
 		}()
 		log.Println("loading configuration")
 
-		configuration := createConfig(*configFile)
+		configuration, err := createConfig(*configFile)
+		if err != nil {
+			log.Printf("Failed to load configuration: %v\n", err)
+			fmt.Printf("Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
 		log.Println("configuration loaded")
 
 		log.Println("Starting workers")
@@ -93,7 +98,9 @@ func worker(configuration ConfigFile) {
 	for j := 0; j < len(configuration.Jobs); j++ {
 		connectionConfig, err := configuration.getConnectionByName(configuration.Jobs[j].ConnectionName)
 		if err != nil {
-			panic(err)
+			log.Printf("Skipping job %q: connection %q not found in config\n",
+				configuration.Jobs[j].Name, configuration.Jobs[j].ConnectionName)
+			continue
 		}
 
 		wg.Add(1)
@@ -123,15 +130,25 @@ func server() {
 	// Listen for incoming connections.
 	l, err := net.Listen("tcp", ":"+*port)
 	if err != nil {
-		fmt.Println("Error listening to port:", *port, err.Error())
+		log.Printf("Error listening to port %s: %v\n", *port, err)
+		fmt.Printf("Error listening to port %s: %v\n", *port, err)
+		return
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
+
+	log.Printf("Server listening on port %s\n", *port)
+
 	for {
 		// Listen for an incoming connection.
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting: ", err.Error())
+			// Check if the error is due to listener being closed
+			if opErr, ok := err.(*net.OpError); ok && opErr.Err.Error() == "use of closed network connection" {
+				return
+			}
+			log.Printf("Error accepting connection: %v\n", err)
+			continue
 		}
 		// Handle connections in a new goroutine.
 		go handleRequest(conn)
@@ -154,8 +171,14 @@ func handleRequest(conn net.Conn) {
 
 func createResponse(command string) string {
 	inputCommand := strings.Fields(command)
+	if len(inputCommand) == 0 {
+		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version\n"
+	}
 	action := inputCommand[0]
-	arguments := strings.Join(inputCommand[1:], " ")
+	arguments := ""
+	if len(inputCommand) > 1 {
+		arguments = strings.Join(inputCommand[1:], " ")
+	}
 	switch action {
 	case "status":
 		return jobKiller.returnStatus()
@@ -210,19 +233,24 @@ func createResponse(command string) string {
 func commandLineService(command string) {
 	endpoint := "localhost:" + *port
 	connection, err := net.Dial("tcp", endpoint)
+	if err != nil {
+		fmt.Printf("Failed to connect to service at %s: %v\n", endpoint, err)
+		return
+	}
 	defer connection.Close()
 
+	_, err = connection.Write([]byte(command))
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		connection.Write([]byte(command))
-		buffer := make([]byte, 1024)
-		_, err = connection.Read(buffer)
-
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			fmt.Println(string(buffer[:]))
-		}
+		fmt.Printf("Failed to send command: %v\n", err)
+		return
 	}
+
+	buffer := make([]byte, 4096)
+	n, err := connection.Read(buffer)
+	if err != nil {
+		fmt.Printf("Failed to read response: %v\n", err)
+		return
+	}
+
+	fmt.Print(string(buffer[:n]))
 }

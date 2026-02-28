@@ -25,16 +25,16 @@ func (jobKiller JobKiller) listening() {
 
 func (jobKiller *JobKiller) pauseAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
-		if !jobKiller.Jobs[i].Pause {
-			jobKiller.Jobs[i].Pause = true
+		if !jobKiller.Jobs[i].GetPause() {
+			jobKiller.Jobs[i].SetPause(true)
 		}
 	}
 }
 
 func (jobKiller *JobKiller) pause(jobName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
-		if !jobKiller.Jobs[i].Pause && jobKiller.Jobs[i].Name == jobName {
-			jobKiller.Jobs[i].Pause = true
+		if !jobKiller.Jobs[i].GetPause() && jobKiller.Jobs[i].Name == jobName {
+			jobKiller.Jobs[i].SetPause(true)
 			break
 		}
 	}
@@ -44,7 +44,7 @@ func (jobKiller *JobKiller) pauseGroup(groupName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		for _, b := range jobKiller.Jobs[i].Groups {
 			if b == groupName {
-				jobKiller.Jobs[i].Pause = true
+				jobKiller.Jobs[i].SetPause(true)
 				break
 			}
 		}
@@ -53,16 +53,16 @@ func (jobKiller *JobKiller) pauseGroup(groupName string) {
 
 func (jobKiller *JobKiller) unpauseAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
-		if jobKiller.Jobs[i].Pause {
-			jobKiller.Jobs[i].Pause = false
+		if jobKiller.Jobs[i].GetPause() {
+			jobKiller.Jobs[i].SetPause(false)
 		}
 	}
 }
 
 func (jobKiller *JobKiller) unpause(jobName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
-		if jobKiller.Jobs[i].Pause && jobKiller.Jobs[i].Name == jobName {
-			jobKiller.Jobs[i].Pause = false
+		if jobKiller.Jobs[i].GetPause() && jobKiller.Jobs[i].Name == jobName {
+			jobKiller.Jobs[i].SetPause(false)
 			break
 		}
 	}
@@ -72,7 +72,7 @@ func (jobKiller *JobKiller) unpauseGroup(groupName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		for _, b := range jobKiller.Jobs[i].Groups {
 			if b == groupName {
-				jobKiller.Jobs[i].Pause = false
+				jobKiller.Jobs[i].SetPause(false)
 				break
 			}
 		}
@@ -81,15 +81,18 @@ func (jobKiller *JobKiller) unpauseGroup(groupName string) {
 
 func (jobKiller *JobKiller) killAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
-		jobKiller.Jobs[i].Stop = true
+		jobKiller.Jobs[i].SetStop(true)
 		jobKiller.Jobs[i].OwnContextCancel()
-		if jobKiller.Jobs[i].PID != 0 {
-			err := jobKiller.Jobs[i].CmdExecutable.Process.Kill()
-			if err != nil {
-				fmt.Println(err)
+		if jobKiller.Jobs[i].GetPID() != 0 {
+			cmd := jobKiller.Jobs[i].GetCmdExecutable()
+			if cmd != nil && cmd.Process != nil {
+				err := cmd.Process.Kill()
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 		}
-		jobKiller.Jobs[i].Status = STATUS_TERMINATED
+		jobKiller.Jobs[i].SetStatus(STATUS_TERMINATED)
 	}
 }
 

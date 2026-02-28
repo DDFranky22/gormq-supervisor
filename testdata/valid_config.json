@@ -1,0 +1,50 @@
+{
+	"connections": [
+		{
+			"name": "main",
+			"endpoint": "http://localhost:15672",
+			"username": "guest",
+			"password": "guest",
+			"vhost": "/"
+		},
+		{
+			"name": "secondary",
+			"endpoint": "http://localhost:15673",
+			"username": "admin",
+			"password": "admin",
+			"vhost": "/test"
+		}
+	],
+	"jobs": [
+		{
+			"name": "simple_job",
+			"groups": ["workers"],
+			"sleep_time": 5,
+			"sleep_increment": 2,
+			"max_sleep": 60,
+			"min_messages": 1,
+			"command": "echo hello",
+			"spawn": 1,
+			"connection": "main",
+			"queue": "test_queue"
+		},
+		{
+			"name": "full_job",
+			"groups": ["workers", "batch"],
+			"sleep_time": 10,
+			"sleep_increment": 5,
+			"max_sleep": 120,
+			"min_messages": 5,
+			"working_dir": "/tmp",
+			"user": "worker",
+			"command": "php process.php",
+			"spawn": 2,
+			"connection": "main",
+			"queue": "work_queue",
+			"error_log_path": "/var/log/",
+			"error_log_max_kb_size": 1024,
+			"error_log_max_files": 5,
+			"max_execution": 300
+		}
+	]
+}
