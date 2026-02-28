@@ -1,7 +1,7 @@
 # gormq-supervisor
 A program in go that launches commands (jobs) based on configuration only if there are messages in `RabbitMQ`
 
-## why does this exists?
+## Why does this exists?
 I found myself in a situation where I had multiple queues on RabbitMQ (20+) and the impossibility to have a program that constantly listen on the queue for incoming messages.
 The first approach was to use crontab to execute a bash file with the processes that needs to be executed every 1 minute.
 The second solution was to use a program like supervisor to constantly launch processes that interrogate RabbitMQ and then execute if there were any messages in the queue. 
@@ -15,7 +15,7 @@ Therefore I needed to create a program that:
 All of this could have been avoided writing a program that will constantly listen to incoming messages for a specific exchange, but I was out of luck. Maybe this is also your case.
 Hope this helps.
 
-## dependencies
+## Dependencies
 This program depends on:
 - RabbitMQ > 3.6.0
 - RabbitMQ management plugin
@@ -23,13 +23,13 @@ This program depends on:
 
 It uses the management plugin HTTP API to retrieve the number of messages in a specific queue
 
-## terminology
+## Terminology
 There are two main resources in this program:
 - Connections
 - Jobs
 ### Connections
 Simply put, the connection to the RabbitMQ instance. They are composed as such:
-- Name: custom name of the connection. This should be unique since it will be used to indicate the connection to a singol job
+- Name: custom name of the connection. This should be unique since it will be used to indicate the connection to a single job
 - Endpoint: URL for the RabbitMQ management plugin (usually same endpoint of RabbitMQ but with port 15672)
 - Username: username to use when calling the API. It can be an environment variable in the form `${VARIABLE_NAME}`
 - Password: password to use when calling the API. It can be an environment variable in the form `${VARIABLE_NAME}`
@@ -54,7 +54,7 @@ Here is their composition (those with an * are required in configuration):
 - ErrorLogMaxFiles: max number of files allowed for error/output. When reached, it will delete the oldest file.
 - MaxExecution: max execution time allowed for the command. When reached, it will try to kill the command and reset the execution of the job
 
-## sample configuration
+## Sample configuration
 ```JSON
 {
   "connections": [
@@ -89,22 +89,25 @@ Here is their composition (those with an * are required in configuration):
 }
 ```
 
-## how to run it
+## How to run it
 After downloading/cloning the repo, you can simply run:
 
 ```shell
 go run *.go --config ./path_to_json_config --log ./
 ```
 
-There are the flags available:
-- `config`: path to the config file
-- `log`: path to the generic log of the program
-- `port`: specify the port where the service should listn (default `9000`)
-- `testing`: used for testing and avoid calling RabbitMQ
-- `operation`: this program comes with a fable attempt to "install" it as a service, either as `servicectl` or `initd`. It just means it creates one of two files base on the `installMethod` option.
-- `installMethod`: attempt to install the program as a service. Needs to be `root`. The installation will be "interactive" by default
-- `silent`: attempt to install with default values and will not ask anything when installing
-- `option`: when used in conjunction with `operation` with value `service`, allows you to communicate with the main instance of the service via the specified port. This is used to show "status" of the jobs, pausing them and stopping them.
+These are the flags available:
+
+| Flag | Description |
+|---|---|
+| `config` | path to the config file |
+| `log` | path to the generic log of the program |
+| `port` | specify the port where the service should listen (default `9000`) |
+| `testing` | used for testing and avoid calling RabbitMQ |
+| `operation` | this program comes with a feeble attempt to "install" it as a service, either as `servicectl` or `initd`. It just means it creates one of two files base on the `installMethod` option. |
+| `installMethod` | attempt to install the program as a service. Needs to be `root`. The installation will be "interactive" by default |
+| `silent` | attempt to install with default values and will not ask anything when installing |
+| `option` | when used in conjunction with `operation` with value `service`, allows you to communicate with the main instance of the service via the specified port. This is used to show "status" of the jobs, pausing them and stopping them. |
 
 I suggest checking the `option` flag and its uses. With that you can pause, restart, check the status and even kill all the jobs.
 This is possible both for singular jobs than for a group of jobs.
@@ -131,7 +134,7 @@ service gormq-supervisor status
 ```
 this will be the same with all the options available. If you used `systemctl`, sorry no can do.
 
-## how to build it
+## How to build it
 If you want to build this program, this is the minimum command:
 ```shell
 CGO_ENABLED=0 go build *.go
