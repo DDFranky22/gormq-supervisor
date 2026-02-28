@@ -1,12 +1,12 @@
 # gormq-supervisor
 A program in go that launches commands (jobs) based on configuration only if there are messages in `RabbitMQ`
 
-## Why does this exists?
+## Why does this exist?
 I found myself in a situation where I had multiple queues on RabbitMQ (20+) and the impossibility to have a program that constantly listen on the queue for incoming messages.
 The first approach was to use crontab to execute a bash file with the processes that needs to be executed every 1 minute.
 The second solution was to use a program like supervisor to constantly launch processes that interrogate RabbitMQ and then execute if there were any messages in the queue. 
 However with the increase of the number of queues, for both solutions, it also meant an increased CPU load, and the processes will start even if there were no messages in queue.
-supervisor also has the drawback that if there are no messages in queue and the process exists (due to natural timeout), it will not wait up to a minute like with crontab but it will spin the process back up immediatly. This is by design (and correct) for supervisor, and is kind of a pain in my situation.
+supervisor also has the drawback that if there are no messages in queue and the process exists (due to natural timeout), it will not wait up to a minute like with crontab but it will spin the process back up immediately. This is by design (and correct) for supervisor, and is kind of a pain in my situation.
 
 Therefore I needed to create a program that:
 - retrieved the number of messages in a specific queue
@@ -104,13 +104,13 @@ These are the flags available:
 | `log` | path to the generic log of the program |
 | `port` | specify the port where the service should listen (default `9000`) |
 | `testing` | used for testing and avoid calling RabbitMQ |
-| `operation` | this program comes with a feeble attempt to "install" it as a service, either as `servicectl` or `initd`. It just means it creates one of two files base on the `installMethod` option. |
+| `operation` | this program comes with a feeble attempt to "install" it as a service, either as `servicectl` or `initd`. It just means it creates one of two files based on the `installMethod` option. |
 | `installMethod` | attempt to install the program as a service. Needs to be `root`. The installation will be "interactive" by default |
 | `silent` | attempt to install with default values and will not ask anything when installing |
 | `option` | when used in conjunction with `operation` with value `service`, allows you to communicate with the main instance of the service via the specified port. This is used to show "status" of the jobs, pausing them and stopping them. |
 
 I suggest checking the `option` flag and its uses. With that you can pause, restart, check the status and even kill all the jobs.
-This is possible both for singular jobs than for a group of jobs.
+This is possible for both singular jobs and for a group of jobs.
 Here some examples:
 ```shell
 go run *.go --operation service --option status-of job1
