@@ -1,4 +1,4 @@
-package main
+package job
 
 import (
 	"bufio"
@@ -15,6 +15,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"gormq-supervisor/internal/connection"
+	"gormq-supervisor/internal/logger"
+	"gormq-supervisor/internal/rabbitmq"
 )
 
 type Job struct {
@@ -37,7 +40,7 @@ type Job struct {
 	PID               int
 	MainPid           int
 	CurrentSleepTime  int
-	ConnectionConfig  ConnectionConfig
+	ConnectionConfig  connection.ConnectionConfig
 	CmdExecutable     *exec.Cmd
 	Status            int16
 	Stop              bool
@@ -45,7 +48,9 @@ type Job struct {
 	StartedAt         int64
 	OwnContext        context.Context
 	OwnContextCancel  context.CancelFunc
+	Log		  logger.Logger
 	mu                sync.RWMutex // protects concurrent access to mutable fields
+	TestMode		  bool
 }
 
 const STATUS_SLEEP = 0
@@ -242,18 +247,23 @@ func (job *Job) getStatusName() string {
 	return job.getStatusNameLocked()
 }
 
-func (job *Job) executeCommand(wg *sync.WaitGroup) {
+func (job *Job) ExecuteCommand(wg *sync.WaitGroup) {
 	defer wg.Done()
-	log.Println("Starting Job: " + job.Name)
-	rmqc := createClient(job.ConnectionConfig.Endpoint, job.ConnectionConfig.Username, job.ConnectionConfig.Password)
+	job.Log.Println("Starting Job: " + job.Name)
+	rmqc := rabbitmq.CreateClient(
+		job.ConnectionConfig.Endpoint,
+		job.ConnectionConfig.Username,
+		job.ConnectionConfig.Password,
+		job.TestMode,
+	)
 	runningUserId, err := job.returnUserId()
 	if err != nil {
-		log.Printf("For job: \"%v\" could not recover user \"%v\". Cannot be executed\n", job.Name, job.UserId)
+		job.Log.Printf("For job: \"%v\" could not recover user \"%v\". Cannot be executed\n", job.Name, job.UserId)
 		job.SetStop(true)
 	}
 	runningUserMainGroup, runningUserGroups, err := job.returnUserGroups()
 	if err != nil {
-		log.Printf("For job: \"%v\" could not recover groups for user \"%v\". Cannot be executed\n", job.Name, job.UserId)
+		job.Log.Printf("For job: \"%v\" could not recover groups for user \"%v\". Cannot be executed\n", job.Name, job.UserId)
 		job.SetStop(true)
 	}
 LOOP:
@@ -273,7 +283,7 @@ LOOP:
 			continue
 		}
 		job.SetStatus(STATUS_SLEEP)
-		queueMessages, execute := rmqc.getMessages(job)
+		queueMessages, execute := rmqc.GetMessages(job.ConnectionConfig.Vhost, job.Queue)
 		if execute {
 			if job.GetMinMessages() <= queueMessages {
 				job.SetStatus(STATUS_RUNNING)
@@ -290,7 +300,7 @@ LOOP:
 				if job.WorkingDir != "" {
 					absolutePath, error := filepath.Abs(job.WorkingDir)
 					if error != nil {
-						log.Printf("For job: \"%v\" the directory \"%v\" does not exists. Cannot be executed\n", job.Name, job.WorkingDir)
+						job.Log.Printf("For job: \"%v\" the directory \"%v\" does not exists. Cannot be executed\n", job.Name, job.WorkingDir)
 						break LOOP
 					}
 					cmd.Dir = absolutePath
@@ -309,7 +319,7 @@ LOOP:
 				stderr, _ := cmd.StderrPipe()
 				startErr := cmd.Start()
 				if startErr != nil {
-					log.Printf("For job: \"%v\" the command: \"%v\" cannot be executed. Output: %v\n", job.Name, job.Command, startErr)
+					job.Log.Printf("For job: \"%v\" the command: \"%v\" cannot be executed. Output: %v\n", job.Name, job.Command, startErr)
 					break LOOP
 				}
 				now := time.Now()
@@ -334,6 +344,11 @@ LOOP:
 				job.SetPID(0)
 				job.SetCurrentSleepTime(job.GetSleepTime())
 			}
+		} else {
+			var arrayOutput []string
+			output := fmt.Sprintf("Can't connect to queue: %v on vhost: %v - Error: %v", job.Queue, job.ConnectionConfig.Vhost, err)
+			arrayOutput = append(arrayOutput, output)
+			job.logOutput(arrayOutput)
 		}
 		job.Sleep(job.OwnContext)
 		currentSleep := job.GetCurrentSleepTime()
@@ -346,7 +361,7 @@ LOOP:
 		job.SetCurrentSleepTime(newSleepTime)
 	}
 	job.SetStatus(STATUS_TERMINATED)
-	log.Println("Ending Job: " + job.Name)
+	job.Log.Println("Ending Job: " + job.Name)
 }
 
 func (job *Job) logFolder() (string, error) {
@@ -355,8 +370,8 @@ func (job *Job) logFolder() (string, error) {
 		if _, err := os.Stat(logFolder); os.IsNotExist(err) {
 			err := os.Mkdir(logFolder, 0760)
 			if err != nil {
-				log.Println("Error in making log folder")
-				log.Println(err)
+				job.Log.Println("Error in making log folder")
+				job.Log.Println(err)
 				return "", err
 			}
 		}
@@ -369,8 +384,8 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 	now := time.Now()
 	dirEntries, err := os.ReadDir(logFolder)
 	if err != nil {
-		log.Println("Error in reading log folder")
-		log.Println(err)
+		job.Log.Println("Error in reading log folder")
+		job.Log.Println(err)
 		return nil, err
 	}
 	files := []string{}
@@ -389,21 +404,21 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 		if job.ErrorLogMaxFiles >= 1 && job.ErrorLogMaxFiles < len(filesArray) {
 			err := os.Remove(logFolder + "/" + filesArray[0])
 			if err != nil {
-				log.Println("Can't remove file")
-				log.Println(err)
+				job.Log.Println("Can't remove file")
+				job.Log.Println(err)
 				return nil, err
 			}
 		}
 
 		logFile, err = os.OpenFile(logFolder+"/"+loggingFileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil || logFile == nil {
-			log.Printf("Can't open log file %v\n", logFolder+"/"+loggingFileName)
+			job.Log.Printf("Can't open log file %v\n", logFolder+"/"+loggingFileName)
 		}
 
 		if job.ErrorLogMaxKBSize > 0 {
 			logFileStats, err := os.Stat(logFile.Name())
 			if err != nil {
-				log.Println("Can't get stats of log file")
+				job.Log.Println("Can't get stats of log file")
 				return nil, err
 			}
 
@@ -412,7 +427,7 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 				newLogPath := logFolder + "/" + logName
 				logFile, err = os.Create(newLogPath)
 				if err != nil {
-					log.Println(err)
+					job.Log.Println(err)
 					return nil, err
 				}
 			}
@@ -423,7 +438,7 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 		newLogPath := logFolder + "/" + logName
 		logFile, err = os.Create(newLogPath)
 		if err != nil {
-			log.Println(err)
+			job.Log.Println(err)
 			return nil, err
 		}
 	}
@@ -450,15 +465,15 @@ func (job *Job) logOutput(output []string) {
 		var logFile *os.File
 		logFile, err = job.getLogFile(logFolder)
 		if err != nil {
-			log.Println("Error in getting log file")
-			log.Println(err)
+			job.Log.Println("Error in getting log file")
+			job.Log.Println(err)
 			return
 		}
 
 		_, err = logFile.WriteString(logString)
 		if err != nil {
-			log.Println("Can't log")
-			log.Println(err)
+			job.Log.Println("Can't log")
+			job.Log.Println(err)
 			return
 		}
 		logFile.Sync()
@@ -469,8 +484,8 @@ func (job *Job) logOutput(output []string) {
 func (job *Job) checkIfStillActive(pid int) bool {
 	_, err := os.FindProcess(int(pid))
 	if err != nil {
-		log.Println("Error")
-		log.Println(err)
+		job.Log.Println("Error")
+		job.Log.Println(err)
 		return false
 	}
 	return true
@@ -486,7 +501,7 @@ func (job *Job) Sleep(ctx context.Context) error {
 	}
 }
 
-func (job *Job) clone(numberItem int) Job {
+func (job *Job) Clone(numberItem int) Job {
 	newJob := Job{
 		Name:              job.Name + "_" + strconv.Itoa(numberItem),
 		Groups:            job.Groups,
@@ -552,7 +567,7 @@ func (job *Job) returnUserGroups() (uint32, []uint32, error) {
 	return 0, groups, nil
 }
 
-func (job *Job) updateProperties(properties []string) error {
+func (job *Job) UpdateProperties(properties []string) error {
 	if len(properties) < 2 {
 		return errors.New("updateProperties requires at least 2 arguments: property name and value")
 	}

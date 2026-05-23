@@ -1,4 +1,4 @@
-package main
+package installer
 
 import (
 	"bufio"
@@ -31,7 +31,7 @@ func StringPrompt(label string) string {
 	return strings.TrimSpace(s)
 }
 
-func installAsServicectl() {
+func installAsServicectl(silentInstall bool) {
 	//create file under /etc/systemd/system/gormq-supervisor.service
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -54,7 +54,7 @@ func installAsServicectl() {
 		group := defaultGroup
 		environmentFile := defaultEnvironmentFile
 
-		if !*silentInstall {
+		if !silentInstall {
 			user = StringPrompt("Inser the user that should launch the service:")
 			group = StringPrompt("Insert the group of the user:")
 			environmentFile = StringPrompt("Indicate the path of the EnvironmentFile (absolute):")
@@ -97,7 +97,7 @@ WantedBy=multi-user.target`, description, currentDir, user, group, currentDir, e
 	}
 }
 
-func installAsInitd() {
+func installAsInitd(silentInstall bool) {
 	//create file under /etc/init.d/gormq-supervisor
 	currentDir, err := os.Getwd()
 	if err != nil {
@@ -115,7 +115,7 @@ func installAsInitd() {
 		configFile := currentDir + "/cong-configuration.json"
 		listeningPort := "9000"
 
-		if !*silentInstall {
+		if !silentInstall {
 
 			chkconfig = StringPrompt("chkconfig (35 95 05)")
 			if chkconfig == "" {
@@ -361,19 +361,19 @@ exit 0
 	}
 }
 
-func install() {
+func Install(silentInstall bool, installMethod string) {
 	var installMethodPicked string
-	if *silentInstall == true {
-		installMethodPicked = *installMethod
+	if silentInstall == true {
+		installMethodPicked = installMethod
 	} else {
 		installMethodPicked = StringPrompt("How do you want to install? (servicectl | initd)")
 	}
 
 	switch installMethodPicked {
 	case "servicectl":
-		installAsServicectl()
+		installAsServicectl(silentInstall)
 	case "initd":
-		installAsInitd()
+		installAsInitd(silentInstall)
 	}
 }
 
@@ -411,7 +411,7 @@ func uninstallInitd() {
 	}
 }
 
-func uninstall() {
+func Uninstall() {
 	uninstallServicectl()
 	uninstallInitd()
 }

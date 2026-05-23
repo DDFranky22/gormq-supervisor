@@ -1,4 +1,4 @@
-package main
+package job
 
 import (
 	"sync"
@@ -280,7 +280,7 @@ func TestJob_Clone(t *testing.T) {
 		MaxExecution:      300,
 	}
 
-	cloned := original.clone(1)
+	cloned := original.Clone(1)
 
 	// Check name is modified
 	expectedName := "original_job_1"
@@ -350,7 +350,7 @@ func TestJob_Clone_MutexNotShared(t *testing.T) {
 		Name: "original",
 	}
 
-	cloned := original.clone(1)
+	cloned := original.Clone(1)
 
 	// Set different values concurrently - if mutex is shared, we'd have issues
 	var wg sync.WaitGroup
@@ -374,12 +374,12 @@ func TestJob_Clone_MutexNotShared(t *testing.T) {
 	// Test passes if no race conditions occur
 }
 
-// Test updateProperties
+// Test UpdateProperties
 
 func TestJob_UpdateProperties_MinMessages(t *testing.T) {
 	job := &Job{MinMessages: 5}
 
-	err := job.updateProperties([]string{"min_messages", "10"})
+	err := job.UpdateProperties([]string{"min_messages", "10"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -391,7 +391,7 @@ func TestJob_UpdateProperties_MinMessages(t *testing.T) {
 func TestJob_UpdateProperties_SleepTime(t *testing.T) {
 	job := &Job{SleepTime: 5}
 
-	err := job.updateProperties([]string{"sleep_time", "15"})
+	err := job.UpdateProperties([]string{"sleep_time", "15"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestJob_UpdateProperties_SleepTime(t *testing.T) {
 func TestJob_UpdateProperties_SleepIncrement(t *testing.T) {
 	job := &Job{SleepIncrement: 2}
 
-	err := job.updateProperties([]string{"sleep_increment", "5"})
+	err := job.UpdateProperties([]string{"sleep_increment", "5"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestJob_UpdateProperties_SleepIncrement(t *testing.T) {
 func TestJob_UpdateProperties_MaxSleep(t *testing.T) {
 	job := &Job{MaxSleep: 60}
 
-	err := job.updateProperties([]string{"max_sleep", "120"})
+	err := job.UpdateProperties([]string{"max_sleep", "120"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestJob_UpdateProperties_MaxSleep(t *testing.T) {
 func TestJob_UpdateProperties_Spawn(t *testing.T) {
 	job := &Job{Spawn: 1}
 
-	err := job.updateProperties([]string{"spawn", "5"})
+	err := job.UpdateProperties([]string{"spawn", "5"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestJob_UpdateProperties_Spawn(t *testing.T) {
 func TestJob_UpdateProperties_MaxExecution(t *testing.T) {
 	job := &Job{MaxExecution: 300}
 
-	err := job.updateProperties([]string{"max_execution", "600"})
+	err := job.UpdateProperties([]string{"max_execution", "600"})
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
@@ -455,7 +455,7 @@ func TestJob_UpdateProperties_MaxExecution(t *testing.T) {
 func TestJob_UpdateProperties_InvalidProperty(t *testing.T) {
 	job := &Job{}
 
-	err := job.updateProperties([]string{"invalid_property", "10"})
+	err := job.UpdateProperties([]string{"invalid_property", "10"})
 	if err == nil {
 		t.Error("Expected error for invalid property")
 	}
@@ -464,7 +464,7 @@ func TestJob_UpdateProperties_InvalidProperty(t *testing.T) {
 func TestJob_UpdateProperties_InvalidValue(t *testing.T) {
 	job := &Job{}
 
-	err := job.updateProperties([]string{"min_messages", "not_a_number"})
+	err := job.UpdateProperties([]string{"min_messages", "not_a_number"})
 	if err == nil {
 		t.Error("Expected error for non-numeric value")
 	}
@@ -484,7 +484,7 @@ func TestJob_UpdateProperties_NegativeValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.property, func(t *testing.T) {
 			job := &Job{}
-			err := job.updateProperties([]string{tt.property, "-5"})
+			err := job.UpdateProperties([]string{tt.property, "-5"})
 			if err == nil {
 				t.Errorf("Expected error for negative value on %s", tt.property)
 			}
@@ -495,7 +495,7 @@ func TestJob_UpdateProperties_NegativeValue(t *testing.T) {
 func TestJob_UpdateProperties_SpawnZero(t *testing.T) {
 	job := &Job{Spawn: 1}
 
-	err := job.updateProperties([]string{"spawn", "0"})
+	err := job.UpdateProperties([]string{"spawn", "0"})
 	if err == nil {
 		t.Error("Expected error for spawn = 0")
 	}
@@ -504,7 +504,7 @@ func TestJob_UpdateProperties_SpawnZero(t *testing.T) {
 func TestJob_UpdateProperties_SpawnNegative(t *testing.T) {
 	job := &Job{Spawn: 1}
 
-	err := job.updateProperties([]string{"spawn", "-1"})
+	err := job.UpdateProperties([]string{"spawn", "-1"})
 	if err == nil {
 		t.Error("Expected error for negative spawn")
 	}
@@ -514,13 +514,13 @@ func TestJob_UpdateProperties_InsufficientArguments(t *testing.T) {
 	job := &Job{}
 
 	// Empty slice
-	err := job.updateProperties([]string{})
+	err := job.UpdateProperties([]string{})
 	if err == nil {
 		t.Error("Expected error for empty arguments")
 	}
 
 	// Only property name, no value
-	err = job.updateProperties([]string{"min_messages"})
+	err = job.UpdateProperties([]string{"min_messages"})
 	if err == nil {
 		t.Error("Expected error for missing value")
 	}

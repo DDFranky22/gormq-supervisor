@@ -1,4 +1,4 @@
-package main
+package rabbitmq
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestCreateClient(t *testing.T) {
-	client := createClient("http://localhost:15672", "guest", "guest")
+	client := CreateClient("http://localhost:15672", "guest", "guest", true)
 
 	if client.Endpoint != "http://localhost:15672" {
 		t.Errorf("Expected endpoint 'http://localhost:15672', got '%s'", client.Endpoint)
@@ -52,7 +52,7 @@ func TestClient_GetQueue_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "test_queue")
 
@@ -73,7 +73,7 @@ func TestClient_GetQueue_NotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "nonexistent_queue")
 
@@ -91,7 +91,7 @@ func TestClient_GetQueue_Unauthorized(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "wrong", "credentials")
+	client := CreateClient(server.URL, "wrong", "credentials", true)
 
 	queueInfo, err := client.getQueue("/", "test_queue")
 
@@ -109,7 +109,7 @@ func TestClient_GetQueue_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "test_queue")
 
@@ -128,7 +128,7 @@ func TestClient_GetQueue_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "test_queue")
 
@@ -144,7 +144,7 @@ func TestClient_GetQueue_InvalidJSON(t *testing.T) {
 
 func TestClient_GetQueue_ConnectionRefused(t *testing.T) {
 	// Use a port that's not listening
-	client := createClient("http://localhost:59999", "guest", "guest")
+	client := CreateClient("http://localhost:59999", "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "test_queue")
 
@@ -165,7 +165,7 @@ func TestClient_GetQueue_VhostEncoding(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	// Test vhost with special characters
 	client.getQueue("my/vhost", "test_queue")
@@ -186,7 +186,7 @@ func TestClient_GetQueue_QueueNameEncoding(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	// Test queue name with special characters
 	client.getQueue("/", "my/queue name")
@@ -206,7 +206,7 @@ func TestClient_GetQueue_ZeroMessages(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "empty_queue")
 
@@ -228,7 +228,7 @@ func TestClient_GetQueue_LargeMessageCount(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := createClient(server.URL, "guest", "guest")
+	client := CreateClient(server.URL, "guest", "guest", true)
 
 	queueInfo, err := client.getQueue("/", "busy_queue")
 
