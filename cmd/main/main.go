@@ -38,7 +38,7 @@ var jobKiller job.JobKiller
 var wg sync.WaitGroup
 var log logger.Logger
 
-const VERSION = "v0.2"
+const VERSION = "v0.3"
 
 var mainContext context.Context
 
