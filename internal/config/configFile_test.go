@@ -1,6 +1,7 @@
-package main
+package config
 
 import (
+	"gormq-supervisor/internal/connection"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,13 +11,13 @@ import (
 
 func TestConfigFile_GetConnectionByName_Found(t *testing.T) {
 	config := &ConfigFile{
-		ConnectionConfigs: []ConnectionConfig{
+		ConnectionConfigs: []connection.ConnectionConfig{
 			{Name: "conn1", Endpoint: "http://localhost:15672", Username: "user1", Password: "pass1", Vhost: "/"},
 			{Name: "conn2", Endpoint: "http://localhost:15673", Username: "user2", Password: "pass2", Vhost: "/test"},
 		},
 	}
 
-	conn, err := config.getConnectionByName("conn2")
+	conn, err := config.GetConnectionByName("conn2")
 
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -34,12 +35,12 @@ func TestConfigFile_GetConnectionByName_Found(t *testing.T) {
 
 func TestConfigFile_GetConnectionByName_NotFound(t *testing.T) {
 	config := &ConfigFile{
-		ConnectionConfigs: []ConnectionConfig{
+		ConnectionConfigs: []connection.ConnectionConfig{
 			{Name: "conn1", Endpoint: "http://localhost:15672"},
 		},
 	}
 
-	conn, err := config.getConnectionByName("nonexistent")
+	conn, err := config.GetConnectionByName("nonexistent")
 
 	if err == nil {
 		t.Error("Expected error for nonexistent connection")
@@ -51,10 +52,10 @@ func TestConfigFile_GetConnectionByName_NotFound(t *testing.T) {
 
 func TestConfigFile_GetConnectionByName_EmptyConnections(t *testing.T) {
 	config := &ConfigFile{
-		ConnectionConfigs: []ConnectionConfig{},
+		ConnectionConfigs: []connection.ConnectionConfig{},
 	}
 
-	conn, err := config.getConnectionByName("conn1")
+	conn, err := config.GetConnectionByName("conn1")
 
 	if err == nil {
 		t.Error("Expected error for empty connections list")
@@ -67,13 +68,13 @@ func TestConfigFile_GetConnectionByName_EmptyConnections(t *testing.T) {
 func TestConfigFile_GetConnectionByName_FirstMatch(t *testing.T) {
 	// If there are duplicates, should return first match
 	config := &ConfigFile{
-		ConnectionConfigs: []ConnectionConfig{
+		ConnectionConfigs: []connection.ConnectionConfig{
 			{Name: "conn", Endpoint: "http://first:15672"},
 			{Name: "conn", Endpoint: "http://second:15672"},
 		},
 	}
 
-	conn, err := config.getConnectionByName("conn")
+	conn, err := config.GetConnectionByName("conn")
 
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -83,7 +84,7 @@ func TestConfigFile_GetConnectionByName_FirstMatch(t *testing.T) {
 	}
 }
 
-// Test createConfig
+// Test CreateConfig
 
 func TestCreateConfig_ValidConfig(t *testing.T) {
 	// Create a temporary config file
@@ -121,7 +122,7 @@ func TestCreateConfig_ValidConfig(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config, err := createConfig(configPath)
+	config, err := CreateConfig(configPath)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -161,7 +162,7 @@ func TestCreateConfig_WithSpawn(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config, err := createConfig(configPath)
+	config, err := CreateConfig(configPath)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -225,7 +226,7 @@ func TestCreateConfig_EnvVariableReplacement(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config, err := createConfig(configPath)
+	config, err := CreateConfig(configPath)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -250,7 +251,7 @@ func TestCreateConfig_InvalidJSON(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	_, err = createConfig(configPath)
+	_, err = CreateConfig(configPath)
 
 	// Should return error for invalid JSON
 	if err == nil {
@@ -259,7 +260,7 @@ func TestCreateConfig_InvalidJSON(t *testing.T) {
 }
 
 func TestCreateConfig_MissingFile(t *testing.T) {
-	_, err := createConfig("/nonexistent/path/config.json")
+	_, err := CreateConfig("/nonexistent/path/config.json")
 
 	if err == nil {
 		t.Error("Expected error for missing file")
@@ -293,7 +294,7 @@ func TestCreateConfig_MultipleSpawnedJobs(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config, err := createConfig(configPath)
+	config, err := CreateConfig(configPath)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -337,7 +338,7 @@ func TestCreateConfig_PreservesJobProperties(t *testing.T) {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	config, err := createConfig(configPath)
+	config, err := CreateConfig(configPath)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

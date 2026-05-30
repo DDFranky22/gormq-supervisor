@@ -1,29 +1,17 @@
-package main
+package job
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	"text/tabwriter"
-	"time"
 )
 
 type JobKiller struct {
 	Jobs []*Job
 }
 
-func (jobKiller JobKiller) listening() {
-	for {
-		time.Sleep(time.Second)
-		select {
-		case <-killAllProcesses:
-			//jobKiller.stopAll()
-			jobKiller.killAll()
-		}
-	}
-}
-
-func (jobKiller *JobKiller) pauseAll() {
+func (jobKiller *JobKiller) PauseAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		if !jobKiller.Jobs[i].GetPause() {
 			jobKiller.Jobs[i].SetPause(true)
@@ -31,7 +19,7 @@ func (jobKiller *JobKiller) pauseAll() {
 	}
 }
 
-func (jobKiller *JobKiller) pause(jobName string) {
+func (jobKiller *JobKiller) Pause(jobName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		if !jobKiller.Jobs[i].GetPause() && jobKiller.Jobs[i].Name == jobName {
 			jobKiller.Jobs[i].SetPause(true)
@@ -40,7 +28,7 @@ func (jobKiller *JobKiller) pause(jobName string) {
 	}
 }
 
-func (jobKiller *JobKiller) pauseGroup(groupName string) {
+func (jobKiller *JobKiller) PauseGroup(groupName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		for _, b := range jobKiller.Jobs[i].Groups {
 			if b == groupName {
@@ -51,7 +39,7 @@ func (jobKiller *JobKiller) pauseGroup(groupName string) {
 	}
 }
 
-func (jobKiller *JobKiller) unpauseAll() {
+func (jobKiller *JobKiller) UnpauseAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		if jobKiller.Jobs[i].GetPause() {
 			jobKiller.Jobs[i].SetPause(false)
@@ -59,7 +47,7 @@ func (jobKiller *JobKiller) unpauseAll() {
 	}
 }
 
-func (jobKiller *JobKiller) unpause(jobName string) {
+func (jobKiller *JobKiller) Unpause(jobName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		if jobKiller.Jobs[i].GetPause() && jobKiller.Jobs[i].Name == jobName {
 			jobKiller.Jobs[i].SetPause(false)
@@ -68,7 +56,7 @@ func (jobKiller *JobKiller) unpause(jobName string) {
 	}
 }
 
-func (jobKiller *JobKiller) unpauseGroup(groupName string) {
+func (jobKiller *JobKiller) UnpauseGroup(groupName string) {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		for _, b := range jobKiller.Jobs[i].Groups {
 			if b == groupName {
@@ -79,7 +67,7 @@ func (jobKiller *JobKiller) unpauseGroup(groupName string) {
 	}
 }
 
-func (jobKiller *JobKiller) killAll() {
+func (jobKiller *JobKiller) KillAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		jobKiller.Jobs[i].SetStop(true)
 		jobKiller.Jobs[i].OwnContextCancel()
@@ -96,7 +84,7 @@ func (jobKiller *JobKiller) killAll() {
 	}
 }
 
-func (jobKiller *JobKiller) returnStatus() string {
+func (jobKiller *JobKiller) ReturnStatus() string {
 	var b bytes.Buffer
 	writer := tabwriter.NewWriter(&b, 10, 0, 2, ' ', tabwriter.Debug)
 	fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\n", "Job", "Groups", "Status", "PID", "User", "Sleep", "Last Exec")
@@ -109,7 +97,7 @@ func (jobKiller *JobKiller) returnStatus() string {
 	return b.String()
 }
 
-func (jobKiller *JobKiller) returnStatusOf(jobName string) string {
+func (jobKiller *JobKiller) ReturnStatusOf(jobName string) string {
 	var b bytes.Buffer
 	writer := tabwriter.NewWriter(&b, 10, 0, 2, ' ', tabwriter.Debug)
 	fmt.Fprintf(writer, "%v\t%v\t%v\t%v\t%v\t%v\t%v\t%v\n", "Job", "Groups", "Status", "PID", "User", "Sleep", "Max sleep", "Last Exec")
@@ -131,7 +119,7 @@ func (jobKiller *JobKiller) returnStatusOf(jobName string) string {
 	return fmt.Sprintf("Can't find job called %v\n", jobName)
 }
 
-func (jobKiller *JobKiller) findJobByName(jobName string) (*Job, error) {
+func (jobKiller *JobKiller) FindJobByName(jobName string) (*Job, error) {
 	found := false
 	var jobToReturn *Job
 	for i := 0; i < len(jobKiller.Jobs); i++ {

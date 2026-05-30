@@ -1,4 +1,4 @@
-package main
+package connection
 
 import (
 	"os"
@@ -83,7 +83,7 @@ func TestConnectionConfig_ReplaceEnvVariables(t *testing.T) {
 		Vhost:    "/",
 	}
 
-	result := config.replaceEnvVariables()
+	result := config.ReplaceEnvVariables()
 
 	if result.Username != "myuser" {
 		t.Errorf("Expected username 'myuser', got '%s'", result.Username)
@@ -109,7 +109,7 @@ func TestConnectionConfig_ReplaceEnvVariables_WithPlainValues(t *testing.T) {
 		Vhost:    "/",
 	}
 
-	result := config.replaceEnvVariables()
+	result := config.ReplaceEnvVariables()
 
 	if result.Username != "plainuser" {
 		t.Errorf("Expected username 'plainuser', got '%s'", result.Username)
@@ -126,9 +126,9 @@ func TestConnectionConfig_ReplaceEnvVariables_ReturnsSamePointer(t *testing.T) {
 		Password: "pass",
 	}
 
-	result := config.replaceEnvVariables()
+	result := config.ReplaceEnvVariables()
 
 	if result != config {
-		t.Error("Expected replaceEnvVariables to return the same pointer")
+		t.Error("Expected ReplaceEnvVariables to return the same pointer")
 	}
 }

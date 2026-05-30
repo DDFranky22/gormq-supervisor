@@ -1,4 +1,4 @@
-package main
+package connection
 
 import (
 	"os"
@@ -13,7 +13,7 @@ type ConnectionConfig struct {
 	Vhost    string `json:"vhost"`
 }
 
-func (connectionConfig *ConnectionConfig) replaceEnvVariables() *ConnectionConfig {
+func (connectionConfig *ConnectionConfig) ReplaceEnvVariables() *ConnectionConfig {
 	connectionConfig.Username = replaceEnvVar(connectionConfig.Username)
 	connectionConfig.Password = replaceEnvVar(connectionConfig.Password)
 	return connectionConfig

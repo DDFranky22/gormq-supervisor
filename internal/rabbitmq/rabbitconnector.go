@@ -1,4 +1,4 @@
-package main
+package rabbitmq
 
 import (
 	"encoding/json"
@@ -12,18 +12,20 @@ type Client struct {
 	Endpoint string
 	Username string
 	Password string
+	TestMode bool
 }
 
 type QueueInfo struct {
 	Messages int `json:"messages"`
 }
 
-func createClient(Endpoint string, Username string, Password string) *Client {
+func CreateClient(Endpoint string, Username string, Password string, TestMode bool) *Client {
 
 	client := Client{
 		Endpoint: Endpoint,
 		Username: Username,
 		Password: Password,
+		TestMode: TestMode,
 	}
 
 	return &client
@@ -57,16 +59,12 @@ func (client *Client) getQueue(Vhost string, QueueName string) (*QueueInfo, erro
 	return &queueInfo, nil
 }
 
-func (client *Client) getMessages(job *Job) (int, bool) {
-	if *testMode {
+func (client *Client) GetMessages(vhost string, queue string) (int, bool) {
+	if client.TestMode {
 		return 1, true
 	}
-	q, err := client.getQueue(job.ConnectionConfig.Vhost, job.Queue)
+	q, err := client.getQueue(vhost, queue)
 	if err != nil {
-		var arrayOutput []string
-		output := fmt.Sprintf("Can't connect to queue: %v on vhost: %v - Error: %v", job.Queue, job.ConnectionConfig.Vhost, err)
-		arrayOutput = append(arrayOutput, output)
-		job.logOutput(arrayOutput)
 		return 0, false
 	}
 

@@ -4,6 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"gormq-supervisor/internal/config"
+	"gormq-supervisor/internal/installer"
+	"gormq-supervisor/internal/job"
+	"gormq-supervisor/internal/logger"
 	"net"
 	"os"
 	"os/signal"
@@ -30,11 +34,11 @@ var (
 	killAllProcesses = make(chan struct{})
 )
 
-var jobKiller JobKiller
+var jobKiller job.JobKiller
 var wg sync.WaitGroup
-var log Logger
+var log logger.Logger
 
-const VERSION = "v0.1"
+const VERSION = "v0.3"
 
 var mainContext context.Context
 
@@ -47,10 +51,10 @@ func main() {
 		usage := "Available operations: install | uninstall . Both operation need to be launched as sudo"
 		switch instruction {
 		case "install":
-			install()
+			installer.Install(*silentInstall, *installMethod)
 			os.Exit(0)
 		case "uninstall":
-			uninstall()
+			installer.Uninstall()
 			os.Exit(0)
 		case "service":
 			commandLineService(*serviceCommand)
@@ -59,7 +63,7 @@ func main() {
 			os.Exit(0)
 		}
 	} else {
-		log = Logger{Path: *logPath + "goncsupervisorlogs.txt"}
+		log = logger.Logger{Path: *logPath + "goncsupervisorlogs.txt"}
 		defer log.Close()
 
 		sigs := make(chan os.Signal, 1)
@@ -74,7 +78,7 @@ func main() {
 		}()
 		log.Println("loading configuration")
 
-		configuration, err := createConfig(*configFile)
+		configuration, err := config.CreateConfig(*configFile)
 		if err != nil {
 			log.Printf("Failed to load configuration: %v\n", err)
 			fmt.Printf("Failed to load configuration: %v\n", err)
@@ -93,10 +97,20 @@ func main() {
 	}
 }
 
-func worker(configuration ConfigFile) {
+func listening() {
+	for {
+		time.Sleep(time.Second)
+		select {
+		case <-killAllProcesses:
+			jobKiller.KillAll()
+		}
+	}
+}
+
+func worker(configuration config.ConfigFile) {
 	mainPid := os.Getpid()
 	for j := 0; j < len(configuration.Jobs); j++ {
-		connectionConfig, err := configuration.getConnectionByName(configuration.Jobs[j].ConnectionName)
+		connectionConfig, err := configuration.GetConnectionByName(configuration.Jobs[j].ConnectionName)
 		if err != nil {
 			log.Printf("Skipping job %q: connection %q not found in config\n",
 				configuration.Jobs[j].Name, configuration.Jobs[j].ConnectionName)
@@ -107,10 +121,12 @@ func worker(configuration ConfigFile) {
 		configuration.Jobs[j].ConnectionConfig = *connectionConfig
 		configuration.Jobs[j].MainPid = mainPid
 		configuration.Jobs[j].OwnContext, configuration.Jobs[j].OwnContextCancel = context.WithCancel(mainContext)
-		go configuration.Jobs[j].executeCommand(&wg)
+		configuration.Jobs[j].Log = log
+		configuration.Jobs[j].TestMode = *testMode
+		go configuration.Jobs[j].ExecuteCommand(&wg)
 		jobKiller.Jobs = append(jobKiller.Jobs, &configuration.Jobs[j])
 	}
-	go jobKiller.listening()
+	go listening()
 
 	go server()
 
@@ -181,33 +197,33 @@ func createResponse(command string) string {
 	}
 	switch action {
 	case "status":
-		return jobKiller.returnStatus()
+		return jobKiller.ReturnStatus()
 	case "status-of":
-		return jobKiller.returnStatusOf(arguments)
+		return jobKiller.ReturnStatusOf(arguments)
 	case "pause":
-		jobKiller.pause(arguments)
-		return "Job will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.returnStatusOf(arguments)
+		jobKiller.Pause(arguments)
+		return "Job will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.ReturnStatusOf(arguments)
 	case "pause-group":
-		jobKiller.pauseGroup(arguments)
-		return "Jobs will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.returnStatus()
+		jobKiller.PauseGroup(arguments)
+		return "Jobs will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.ReturnStatus()
 	case "pause-all":
-		jobKiller.pauseAll()
-		return "Jobs will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.returnStatus()
+		jobKiller.PauseAll()
+		return "Jobs will be paused after getting out of sleep cycle or after execution. Current status: \n" + jobKiller.ReturnStatus()
 	case "unpause":
-		jobKiller.unpause(arguments)
+		jobKiller.Unpause(arguments)
 		time.Sleep(1 * time.Second)
-		return jobKiller.returnStatusOf(arguments)
+		return jobKiller.ReturnStatusOf(arguments)
 	case "unpause-group":
-		jobKiller.unpauseGroup(arguments)
+		jobKiller.UnpauseGroup(arguments)
 		time.Sleep(1 * time.Second)
-		return jobKiller.returnStatus()
+		return jobKiller.ReturnStatus()
 	case "unpause-all":
-		jobKiller.unpauseAll()
+		jobKiller.UnpauseAll()
 		time.Sleep(1 * time.Second)
-		return jobKiller.returnStatus()
+		return jobKiller.ReturnStatus()
 	case "kill-all":
-		jobKiller.killAll()
-		return jobKiller.returnStatus()
+		jobKiller.KillAll()
+		return jobKiller.ReturnStatus()
 	case "version":
 		return VERSION
 	case "update-job":
@@ -215,16 +231,16 @@ func createResponse(command string) string {
 			return "In order to update the job property you need to pass the job name, the property that you need to update and the new value, all separated by space."
 		}
 		jobName := inputCommand[1]
-		job, err := jobKiller.findJobByName(jobName)
+		job, err := jobKiller.FindJobByName(jobName)
 		if err != nil {
 			return err.Error()
 		}
 		updateJobArguments := inputCommand[2:]
-		err = job.updateProperties(updateJobArguments)
+		err = job.UpdateProperties(updateJobArguments)
 		if err != nil {
 			return err.Error()
 		}
-		return "Job updated successfully. Current status: \n" + jobKiller.returnStatusOf(jobName)
+		return "Job updated successfully. Current status: \n" + jobKiller.ReturnStatusOf(jobName)
 	default:
 		return "Commands available:\nstatus | status-of <job name> | pause <job name> | pause-group <group name> | pause-all | unpause <job name> | unpause-group <group name> | unpause-all | kill-all | version\n"
 	}

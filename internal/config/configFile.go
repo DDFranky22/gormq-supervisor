@@ -1,5 +1,4 @@
-// main package
-package main
+package config
 
 import (
 	"encoding/json"
@@ -7,14 +6,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"gormq-supervisor/internal/connection"
+	"gormq-supervisor/internal/job"
 )
 
 type ConfigFile struct {
-	ConnectionConfigs []ConnectionConfig `json:"connections"`
-	Jobs              []Job              `json:"jobs"`
+	ConnectionConfigs []connection.ConnectionConfig `json:"connections"`
+	Jobs              []job.Job              `json:"jobs"`
 }
 
-func (configFile *ConfigFile) getConnectionByName(name string) (*ConnectionConfig, error) {
+func (configFile *ConfigFile) GetConnectionByName(name string) (*connection.ConnectionConfig, error) {
 	for k := 0; k < len(configFile.ConnectionConfigs); k++ {
 		if name == configFile.ConnectionConfigs[k].Name {
 			return &configFile.ConnectionConfigs[k], nil
@@ -23,7 +24,7 @@ func (configFile *ConfigFile) getConnectionByName(name string) (*ConnectionConfi
 	return nil, errors.New("missing connection in config")
 }
 
-func createConfig(configFile string) (ConfigFile, error) {
+func CreateConfig(configFile string) (ConfigFile, error) {
 	var configuration ConfigFile
 
 	jsonFile, err := os.Open(configFile)
@@ -42,13 +43,13 @@ func createConfig(configFile string) (ConfigFile, error) {
 	}
 
 	for index := 0; index < len(configuration.ConnectionConfigs); index++ {
-		configuration.ConnectionConfigs[index].replaceEnvVariables()
+		configuration.ConnectionConfigs[index].ReplaceEnvVariables()
 	}
 
 	for job := 0; job < len(configuration.Jobs); job++ {
 		if configuration.Jobs[job].Spawn > 1 {
 			for spawn := 1; spawn < configuration.Jobs[job].Spawn; spawn++ {
-				newClonedJob := configuration.Jobs[job].clone(spawn)
+				newClonedJob := configuration.Jobs[job].Clone(spawn)
 				configuration.Jobs = append(configuration.Jobs, newClonedJob)
 			}
 			configuration.Jobs[job].Name = configuration.Jobs[job].Name + "_0"

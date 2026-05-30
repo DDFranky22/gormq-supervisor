@@ -1,4 +1,4 @@
-package main
+package job
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func TestJobKiller_Pause(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	jk.pause("job1")
+	jk.Pause("job1")
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 to be paused")
@@ -42,7 +42,7 @@ func TestJobKiller_Pause_NonExistent(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	jk.pause("nonexistent")
+	jk.Pause("nonexistent")
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to remain unpaused")
@@ -55,7 +55,7 @@ func TestJobKiller_Pause_AlreadyPaused(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	jk.pause("job1")
+	jk.Pause("job1")
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 to still be paused")
@@ -70,7 +70,7 @@ func TestJobKiller_Unpause(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	jk.unpause("job1")
+	jk.Unpause("job1")
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to be unpaused")
@@ -85,7 +85,7 @@ func TestJobKiller_Unpause_NotPaused(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	jk.unpause("job1")
+	jk.Unpause("job1")
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to remain unpaused")
@@ -101,7 +101,7 @@ func TestJobKiller_PauseAll(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2, job3}}
 
-	jk.pauseAll()
+	jk.PauseAll()
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 to be paused")
@@ -121,7 +121,7 @@ func TestJobKiller_PauseAll_SomeAlreadyPaused(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	jk.pauseAll()
+	jk.PauseAll()
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 to still be paused")
@@ -141,7 +141,7 @@ func TestJobKiller_UnpauseAll(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2, job3}}
 
-	jk.unpauseAll()
+	jk.UnpauseAll()
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to be unpaused")
@@ -161,7 +161,7 @@ func TestJobKiller_UnpauseAll_SomeNotPaused(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	jk.unpauseAll()
+	jk.UnpauseAll()
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to be unpaused")
@@ -180,7 +180,7 @@ func TestJobKiller_PauseGroup(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2, job3}}
 
-	jk.pauseGroup("groupA")
+	jk.PauseGroup("groupA")
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 (groupA member) to be paused")
@@ -198,7 +198,7 @@ func TestJobKiller_PauseGroup_NonExistent(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	jk.pauseGroup("nonexistent")
+	jk.PauseGroup("nonexistent")
 
 	if job1.GetPause() {
 		t.Error("Expected job1 to remain unpaused")
@@ -215,7 +215,7 @@ func TestJobKiller_UnpauseGroup(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2, job3}}
 
-	jk.unpauseGroup("groupA")
+	jk.UnpauseGroup("groupA")
 
 	if job1.GetPause() {
 		t.Error("Expected job1 (groupA member) to be unpaused")
@@ -234,7 +234,7 @@ func TestJobKiller_UnpauseGroup_EmptyGroups(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	jk.unpauseGroup("groupA")
+	jk.UnpauseGroup("groupA")
 
 	if !job1.GetPause() {
 		t.Error("Expected job1 (no groups) to remain paused")
@@ -249,7 +249,7 @@ func TestJobKiller_FindJobByName_Found(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	found, err := jk.findJobByName("job2")
+	found, err := jk.FindJobByName("job2")
 
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
@@ -264,7 +264,7 @@ func TestJobKiller_FindJobByName_NotFound(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	found, err := jk.findJobByName("nonexistent")
+	found, err := jk.FindJobByName("nonexistent")
 
 	if err == nil {
 		t.Error("Expected error for nonexistent job")
@@ -277,7 +277,7 @@ func TestJobKiller_FindJobByName_NotFound(t *testing.T) {
 func TestJobKiller_FindJobByName_EmptyJobs(t *testing.T) {
 	jk := &JobKiller{Jobs: []*Job{}}
 
-	found, err := jk.findJobByName("job1")
+	found, err := jk.FindJobByName("job1")
 
 	if err == nil {
 		t.Error("Expected error for empty jobs list")
@@ -300,7 +300,7 @@ func TestJobKiller_ReturnStatus(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	status := jk.returnStatus()
+	status := jk.ReturnStatus()
 
 	// Check header is present
 	if !strings.Contains(status, "Job") {
@@ -331,7 +331,7 @@ func TestJobKiller_ReturnStatus(t *testing.T) {
 func TestJobKiller_ReturnStatus_EmptyJobs(t *testing.T) {
 	jk := &JobKiller{Jobs: []*Job{}}
 
-	status := jk.returnStatus()
+	status := jk.ReturnStatus()
 
 	// Should still have header
 	if !strings.Contains(status, "Job") {
@@ -352,7 +352,7 @@ func TestJobKiller_ReturnStatusOf_Found(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	status := jk.returnStatusOf("job1")
+	status := jk.ReturnStatusOf("job1")
 
 	if !strings.Contains(status, "job1") {
 		t.Error("Expected status to contain 'job1'")
@@ -374,7 +374,7 @@ func TestJobKiller_ReturnStatusOf_NotFound(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
-	status := jk.returnStatusOf("nonexistent")
+	status := jk.ReturnStatusOf("nonexistent")
 
 	if !strings.Contains(status, "Can't find job") {
 		t.Error("Expected 'Can't find job' message")
@@ -395,7 +395,7 @@ func TestJobKiller_KillAll(t *testing.T) {
 
 	jk := &JobKiller{Jobs: []*Job{job1, job2}}
 
-	jk.killAll()
+	jk.KillAll()
 
 	// Check stop flag is set
 	if !job1.GetStop() {
@@ -430,7 +430,7 @@ func TestJobKiller_KillAll_WithNilCmd(t *testing.T) {
 	jk := &JobKiller{Jobs: []*Job{job1}}
 
 	// Should not panic
-	jk.killAll()
+	jk.KillAll()
 
 	if !job1.GetStop() {
 		t.Error("Expected job1 Stop to be true")
@@ -441,5 +441,5 @@ func TestJobKiller_KillAll_EmptyJobs(t *testing.T) {
 	jk := &JobKiller{Jobs: []*Job{}}
 
 	// Should not panic
-	jk.killAll()
+	jk.KillAll()
 }

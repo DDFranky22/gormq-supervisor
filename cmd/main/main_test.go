@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gormq-supervisor/internal/job"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestCreateResponse_WhitespaceOnly(t *testing.T) {
 
 func TestCreateResponse_Status(t *testing.T) {
 	// Initialize jobKiller with empty jobs for test
-	jobKiller = JobKiller{Jobs: []*Job{}}
+	jobKiller = job.JobKiller{Jobs: []*job.Job{}}
 
 	response := createResponse("status")
 
@@ -50,7 +51,7 @@ func TestCreateResponse_UnknownCommand(t *testing.T) {
 }
 
 func TestCreateResponse_StatusOf_NoArgument(t *testing.T) {
-	jobKiller = JobKiller{Jobs: []*Job{}}
+	jobKiller = job.JobKiller{Jobs: []*job.Job{}}
 
 	response := createResponse("status-of")
 

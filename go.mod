@@ -1,3 +1,3 @@
-module example.com/m/v2
+module gormq-supervisor
 
 go 1.18
