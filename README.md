@@ -137,6 +137,6 @@ this will be the same with all the options available. If you used `systemctl`, s
 ## How to build it
 If you want to build this program, this is the minimum command:
 ```shell
-CGO_ENABLED=0 go build *.go
+CGO_ENABLED=0 go build /cmd/main
 ```
 I suggest specifying also the distribution and architecture.
