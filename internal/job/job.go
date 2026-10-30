@@ -341,13 +341,12 @@ LOOP:
 					job.logOutput(output)
 				}
 				cmd.Wait()
-				if cancelCommandContext != nil {
-					cancelCommandContext()
-				}
 				if commandContext.Err() == context.DeadlineExceeded {
 					var deadlineOutput []string
 					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, maxExecution)))
-				} else if maxExecution > 0 {
+				}
+
+				if cancelCommandContext != nil {
 					cancelCommandContext()
 				}
 				job.SetPID(0)
