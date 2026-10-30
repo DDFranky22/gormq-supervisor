@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,7 +39,6 @@ var jobKiller job.JobKiller
 var wg sync.WaitGroup
 var log logger.Logger
 
-const VERSION = "v0.3"
 var commit = "dev"
 
 var mainContext context.Context
@@ -66,6 +66,7 @@ func main() {
 	} else {
 		log = logger.Logger{Path: *logPath + "goncsupervisorlogs.txt"}
 		defer log.Close()
+		log.Printf("gormq-supervisor %s\n", buildVersion())
 
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -226,7 +227,7 @@ func createResponse(command string) string {
 		jobKiller.KillAll()
 		return jobKiller.ReturnStatus()
 	case "version":
-		return VERSION
+		return buildVersion()
 	case "update-job":
 		if len(inputCommand) < 4 {
 			return "In order to update the job property you need to pass the job name, the property that you need to update and the new value, all separated by space."
@@ -270,4 +271,28 @@ func commandLineService(command string) {
 	}
 
 	fmt.Print(string(buffer[:n]))
+}
+
+func buildVersion() string {
+	if commit != "dev" {
+		return " (" + commit + ")"
+	}
+	revision, modified := "unknown", false
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				revision = s.Value
+				if len(revision) > 7 {
+					revision = revision[:7]
+				}
+			case "vcs.modified":
+				modified = s.Value == "true"
+			}
+		}
+	}
+	if modified {
+		revision += "-dirty"
+	}
+	return " (" + revision + ")"
 }

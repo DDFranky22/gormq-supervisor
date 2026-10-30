@@ -1,7 +1,6 @@
 package job
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -9,7 +8,6 @@ import (
 	"gormq-supervisor/internal/connection"
 	"gormq-supervisor/internal/logger"
 	"gormq-supervisor/internal/rabbitmq"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -346,8 +344,6 @@ LOOP:
 						NoSetGroups: false,
 					}
 				}
-				job.SetCmdExecutable(cmd)
-				stdout, _ := cmd.StdoutPipe()
 				var outWriter, errWriter *lineWriter
 				if job.ErrorLogPath != "" {
 					outWriter = &lineWriter{job: job}
@@ -380,6 +376,7 @@ LOOP:
 					cancelCommandContext()
 				}
 				job.SetPID(0)
+				job.SetCmdExecutable(nil)
 				job.SetCurrentSleepTime(job.GetSleepTime())
 			}
 		} else {
@@ -728,7 +725,7 @@ func (w *lineWriter) Flush() {
 }
 
 func (job *Job) logLine(line string) {
-	job.logMu.lock()
+	job.logMu.Lock()
 	defer job.logMu.Unlock()
 	job.logOutput([]string{line})
 }
