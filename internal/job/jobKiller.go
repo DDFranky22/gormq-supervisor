@@ -73,13 +73,11 @@ func (jobKiller *JobKiller) KillAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		jobKiller.Jobs[i].SetStop(true)
 		jobKiller.Jobs[i].OwnContextCancel()
-		if jobKiller.Jobs[i].GetPID() != 0 {
-			cmd := jobKiller.Jobs[i].GetCmdExecutable()
-			if cmd != nil && cmd.Process != nil {
-				err := killProcess(cmd)
-				if err != nil {
-					fmt.Println(err)
-				}
+		cmd := jobKiller.Jobs[i].GetCmdExecutable()
+		if cmd != nil && cmd.Process != nil {
+			err := killProcess(cmd)
+			if err != nil {
+				fmt.Println(err)
 			}
 		}
 		jobKiller.Jobs[i].SetStatus(STATUS_TERMINATED)
@@ -146,7 +144,7 @@ func killProcess(cmd *exec.Cmd) error {
 
 	err := syscall.Kill(
 		-cmd.Process.Pid,
-		syscall.SIGKILL
+		syscall.SIGKILL,
 	)
 	if err == syscall.ESRCH {
 		return nil

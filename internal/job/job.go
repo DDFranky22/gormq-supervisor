@@ -289,12 +289,11 @@ LOOP:
 				job.SetStatus(STATUS_RUNNING)
 				stringCommand := strings.Fields(job.Command)
 				app, minusApp := stringCommand[0], stringCommand[1:]
-				commandContext := context.Background()
+				commandContext := job.OwnContext
 				var cancelCommandContext context.CancelFunc
 				maxExecution := job.GetMaxExecution()
 				if maxExecution > 0 {
-					commandContext, cancelCommandContext = context.WithTimeout(context.Background(), time.Duration(maxExecution)*time.Second)
-					defer cancelCommandContext()
+					commandContext, cancelCommandContext = context.WithTimeout(job.OwnContext, time.Duration(maxExecution)*time.Second)
 				}
 				cmd := exec.CommandContext(commandContext, app, minusApp...)
 				cmd.Cancel = func() error {
@@ -342,6 +341,9 @@ LOOP:
 					job.logOutput(output)
 				}
 				cmd.Wait()
+				if cancelCommandContext != nil {
+					cancelCommandContext()
+				}
 				if commandContext.Err() == context.DeadlineExceeded {
 					var deadlineOutput []string
 					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, maxExecution)))
