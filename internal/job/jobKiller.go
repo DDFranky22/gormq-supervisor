@@ -72,14 +72,7 @@ func (jobKiller *JobKiller) UnpauseGroup(groupName string) {
 func (jobKiller *JobKiller) KillAll() {
 	for i := 0; i < len(jobKiller.Jobs); i++ {
 		jobKiller.Jobs[i].SetStop(true)
-		jobKiller.Jobs[i].OwnContextCancel()
-		cmd := jobKiller.Jobs[i].GetCmdExecutable()
-		if cmd != nil && cmd.Process != nil {
-			err := killProcess(cmd)
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
+		jobKiller.Jobs[i].OwnContextCancel() // fires cmd.Cancel -> killCommand if a command is running
 		jobKiller.Jobs[i].SetStatus(STATUS_TERMINATED)
 	}
 }
@@ -151,3 +144,4 @@ func killProcess(cmd *exec.Cmd) error {
 	}
 	return err
 }
+

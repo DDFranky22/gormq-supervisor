@@ -39,6 +39,7 @@ var wg sync.WaitGroup
 var log logger.Logger
 
 const VERSION = "v0.3"
+var commit = "dev"
 
 var mainContext context.Context
 
