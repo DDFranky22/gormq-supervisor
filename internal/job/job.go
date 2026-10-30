@@ -1,11 +1,13 @@
 package job
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"gormq-supervisor/internal/connection"
+	"gormq-supervisor/internal/logger"
+	"gormq-supervisor/internal/rabbitmq"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,9 +17,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"gormq-supervisor/internal/connection"
-	"gormq-supervisor/internal/logger"
-	"gormq-supervisor/internal/rabbitmq"
 )
 
 type Job struct {
@@ -37,6 +36,8 @@ type Job struct {
 	ErrorLogMaxKBSize float64  `json:"error_log_max_kb_size"`
 	ErrorLogMaxFiles  int      `json:"error_log_max_files"`
 	MaxExecution      int64    `json:"max_execution"`
+	Container		  string   `json:"container"`
+	ContainerUser	  string   `json:"container_user"`
 	PID               int
 	MainPid           int
 	CurrentSleepTime  int
@@ -48,8 +49,9 @@ type Job struct {
 	StartedAt         int64
 	OwnContext        context.Context
 	OwnContextCancel  context.CancelFunc
-	Log		  logger.Logger
+	Log		          *logger.Logger
 	mu                sync.RWMutex // protects concurrent access to mutable fields
+	logMu		      sync.Mutex
 	TestMode		  bool
 }
 
@@ -210,6 +212,18 @@ func (job *Job) SetMaxExecution(maxExecution int64) {
 	job.MaxExecution = maxExecution
 }
 
+func (job *Job) GetContainer() string {
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.Container
+}
+
+func (job *Job) SetContainer(container string) {
+	job.mu.Lock();
+	defer job.mu.Unlock()
+	job.Container = container
+}
+
 func (job *Job) getStatus() map[string]interface{} {
 	job.mu.RLock()
 	defer job.mu.RUnlock()
@@ -289,24 +303,44 @@ LOOP:
 				job.SetStatus(STATUS_RUNNING)
 				stringCommand := strings.Fields(job.Command)
 				app, minusApp := stringCommand[0], stringCommand[1:]
-				commandContext := context.Background()
+				commandContext := job.OwnContext
 				var cancelCommandContext context.CancelFunc
 				maxExecution := job.GetMaxExecution()
 				if maxExecution > 0 {
-					commandContext, cancelCommandContext = context.WithTimeout(context.Background(), time.Duration(maxExecution)*time.Second)
-					defer cancelCommandContext()
+					commandContext, cancelCommandContext = context.WithTimeout(job.OwnContext, time.Duration(maxExecution)*time.Second)
 				}
-				cmd := exec.CommandContext(commandContext, app, minusApp...)
+				var cmd *exec.Cmd
+				if job.Container != "" {
+					dockerArgs := append(job.dockerExecArgs(),
+						"-e", "GORMQ_PIDFILE="+job.containerPidFile(), job.Container,
+						"sh", "-c", `echo $$ > "$GORMQ_PIDFILE" || exit 1; exec "$@"`, "sh",
+					)
+					dockerArgs = append(dockerArgs, stringCommand...)
+					cmd = exec.CommandContext(commandContext, "docker", dockerArgs...)
+				} else {
+					cmd = exec.CommandContext(commandContext, app, minusApp...)
+				}
+
+				cmd.Cancel = func() error {
+					return	job.killCommand(cmd)
+				}
+
+				cmd.SysProcAttr= &syscall.SysProcAttr{
+					Setpgid: true,
+				}
+
 				if job.WorkingDir != "" {
 					absolutePath, error := filepath.Abs(job.WorkingDir)
 					if error != nil {
 						job.Log.Printf("For job: \"%v\" the directory \"%v\" does not exists. Cannot be executed\n", job.Name, job.WorkingDir)
+						if cancelCommandContext != nil {
+							cancelCommandContext()
+						}
 						break LOOP
 					}
 					cmd.Dir = absolutePath
 				}
 				if runningUserId != 0 && runningUserMainGroup != 0 {
-					cmd.SysProcAttr = &syscall.SysProcAttr{}
 					cmd.SysProcAttr.Credential = &syscall.Credential{
 						Uid:         runningUserId,
 						Gid:         runningUserMainGroup,
@@ -314,34 +348,42 @@ LOOP:
 						NoSetGroups: false,
 					}
 				}
+				var outWriter, errWriter *lineWriter
+				if job.ErrorLogPath != "" {
+					outWriter = &lineWriter{job: job}
+					errWriter = &lineWriter{job: job}
+					cmd.Stdout = outWriter
+					cmd.Stderr = errWriter
+				}
+
+				cmd.WaitDelay = 5 * time.Second
 				job.SetCmdExecutable(cmd)
-				stdout, _ := cmd.StdoutPipe()
-				stderr, _ := cmd.StderrPipe()
 				startErr := cmd.Start()
 				if startErr != nil {
 					job.Log.Printf("For job: \"%v\" the command: \"%v\" cannot be executed. Output: %v\n", job.Name, job.Command, startErr)
+					if cancelCommandContext != nil {
+						cancelCommandContext()
+					}
 					break LOOP
 				}
 				now := time.Now()
 				job.SetStartedAt(now.Unix())
 				job.SetPID(cmd.Process.Pid)
-				if job.ErrorLogPath != "" {
-					scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
-					var output []string
-					scanner.Split(bufio.ScanWords)
-					for scanner.Scan() {
-						output = append(output, scanner.Text())
-					}
-					job.logOutput(output)
-				}
 				cmd.Wait()
+				if outWriter != nil {
+					outWriter.Flush()
+					errWriter.Flush()
+				}
 				if commandContext.Err() == context.DeadlineExceeded {
 					var deadlineOutput []string
 					job.logOutput(append(deadlineOutput, fmt.Sprintf("Job \"%v\" exceeded max execution time of %v seconds. Process Killed.", job.Name, maxExecution)))
-				} else if maxExecution > 0 {
+				}
+
+				if cancelCommandContext != nil {
 					cancelCommandContext()
 				}
 				job.SetPID(0)
+				job.SetCmdExecutable(nil)
 				job.SetCurrentSleepTime(job.GetSleepTime())
 			}
 		} else {
@@ -350,6 +392,7 @@ LOOP:
 			arrayOutput = append(arrayOutput, output)
 			job.logOutput(arrayOutput)
 		}
+		job.SetStatus(STATUS_SLEEP)
 		job.Sleep(job.OwnContext)
 		currentSleep := job.GetCurrentSleepTime()
 		sleepIncrement := job.GetSleepIncrement()
@@ -413,6 +456,7 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 		logFile, err = os.OpenFile(logFolder+"/"+loggingFileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil || logFile == nil {
 			job.Log.Printf("Can't open log file %v\n", logFolder+"/"+loggingFileName)
+			return nil, err
 		}
 
 		if job.ErrorLogMaxKBSize > 0 {
@@ -423,6 +467,7 @@ func (job *Job) getLogFile(logFolder string) (*os.File, error) {
 			}
 
 			if float64(logFileStats.Size()) >= (job.ErrorLogMaxKBSize * 1024) {
+				logFile.Close()
 				logName := strconv.FormatInt(now.Unix(), 10) + "_log.txt"
 				newLogPath := logFolder + "/" + logName
 				logFile, err = os.Create(newLogPath)
@@ -469,6 +514,7 @@ func (job *Job) logOutput(output []string) {
 			job.Log.Println(err)
 			return
 		}
+		defer logFile.Close()
 
 		_, err = logFile.WriteString(logString)
 		if err != nil {
@@ -477,7 +523,6 @@ func (job *Job) logOutput(output []string) {
 			return
 		}
 		logFile.Sync()
-		defer logFile.Close()
 	}
 }
 
@@ -501,6 +546,27 @@ func (job *Job) Sleep(ctx context.Context) error {
 	}
 }
 
+func (job *Job) containerPidFile() string {
+	return "/tmp/gormq-"+job.Name+".pid"
+}
+
+func (job *Job) killCommand(cmd *exec.Cmd) error {
+	if job.Container != "" {
+		script := `p=$(cat "$1" 2>/dev/null) || { exit 0; }
+echo "pidfile says $p: $(cat /proc/$p/cmdline 2>/dev/null | tr '\0' ' ')"
+kill -TERM "$p" 2>/dev/null || { rm -f "$1"; exit 0; }
+i=0
+while [ $i -lt 10 ] && kill -0 "$p" 2>/dev/null; do sleep 1; i=$((i+1)); done
+if kill -0 "$p" 2>/dev/null; then kill -KILL "$p"; fi
+rm -f "$1"`
+		args := append(job.dockerExecArgs(), job.Container, "sh", "-c", script, "sh", job.containerPidFile())
+		stop := exec.Command("docker", args...)
+		out, err := stop.CombinedOutput()
+		job.Log.Printf("Job %q: in-container kill output: %s (err: %v)\n", job.Name, strings.TrimSpace(string(out)), err)
+	}
+	return killProcess(cmd)
+}
+
 func (job *Job) Clone(numberItem int) Job {
 	newJob := Job{
 		Name:              job.Name + "_" + strconv.Itoa(numberItem),
@@ -519,6 +585,7 @@ func (job *Job) Clone(numberItem int) Job {
 		ErrorLogMaxKBSize: job.ErrorLogMaxKBSize,
 		ErrorLogMaxFiles:  job.ErrorLogMaxFiles,
 		MaxExecution:      job.MaxExecution,
+		Container:		   job.Container,
 		// mu is zero-initialized automatically (new mutex)
 	}
 
@@ -632,3 +699,52 @@ func (job *Job) UpdateProperties(properties []string) error {
 	}
 	return nil
 }
+
+
+type lineWriter struct {
+	job *Job
+	buf []byte
+}
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		if line := strings.TrimRight(string(w.buf[:i]), "\r"); line != "" {
+			w.job.logLine(line)
+		}
+		w.buf = w.buf[i+1:]
+	}
+
+	if len(w.buf) > 64*1024 {
+		w.job.logLine(string(w.buf))
+		w.buf = w.buf[:0]
+	}
+	return len(p), nil
+}
+
+func (w *lineWriter) Flush() {
+	if len(w.buf) > 0 {
+		w.job.logLine(string(w.buf))
+		w.buf = nil
+	}
+}
+
+func (job *Job) logLine(line string) {
+	job.logMu.Lock()
+	defer job.logMu.Unlock()
+	job.logOutput([]string{line})
+}
+
+func (job *Job) dockerExecArgs() []string {
+	args := []string{"exec"}
+	if job.ContainerUser != "" {
+		args = append(args, "-u", job.ContainerUser)
+	}
+	return args
+}
+
+
