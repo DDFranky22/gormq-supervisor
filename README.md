@@ -137,6 +137,6 @@ this will be the same with all the options available. If you used `systemctl`, s
 ## How to build it
 If you want to build this program, this is the minimum command:
 ```shell
-CGO_ENABLED=0 go build /cmd/main
+CGO_ENABLED=0 go build -ldflags "-X main.commit=v0.x-$(git rev-parse --short HEAD)" -o ./path/to/output/gromq-supervisor ./cmd/main
 ```
 I suggest specifying also the distribution and architecture.
