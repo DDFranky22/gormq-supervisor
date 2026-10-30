@@ -37,6 +37,7 @@ type Job struct {
 	ErrorLogMaxFiles  int      `json:"error_log_max_files"`
 	MaxExecution      int64    `json:"max_execution"`
 	Container		  string   `json:"container"`
+	ContainerUser	  string   `json:"container_user"`
 	PID               int
 	MainPid           int
 	CurrentSleepTime  int
@@ -310,10 +311,10 @@ LOOP:
 				}
 				var cmd *exec.Cmd
 				if job.Container != "" {
-					dockerArgs := []string{
-						"exec", "-e", "GORMQ_PIDFILE="+job.containerPidFile(), job.Container,
-						"sh", "-c", `echo $$ > "$GORMQ_PIDFILE"; exec "$@"`, "sh",
-					}
+					dockerArgs := append(job.dockerExecArgs(),
+						"-e", "GORMQ_PIDFILE="+job.containerPidFile(), job.Container,
+						"sh", "-c", `echo $$ > "$GORMQ_PIDFILE" || exit 1; exec "$@"`, "sh",
+					)
 					dockerArgs = append(dockerArgs, stringCommand...)
 					cmd = exec.CommandContext(commandContext, "docker", dockerArgs...)
 				} else {
@@ -558,7 +559,8 @@ i=0
 while [ $i -lt 10 ] && kill -0 "$p" 2>/dev/null; do sleep 1; i=$((i+1)); done
 if kill -0 "$p" 2>/dev/null; then kill -KILL "$p"; fi
 rm -f "$1"`
-		stop := exec.Command("docker", "exec", job.Container, "sh", "-c", script, "sh", job.containerPidFile())
+		args := append(job.dockerExecArgs(), job.Container, "sh", "-c", script, "sh", job.containerPidFile())
+		stop := exec.Command("docker", args...)
 		out, err := stop.CombinedOutput()
 		job.Log.Printf("Job %q: in-container kill output: %s (err: %v)\n", job.Name, strings.TrimSpace(string(out)), err)
 	}
@@ -735,6 +737,14 @@ func (job *Job) logLine(line string) {
 	job.logMu.Lock()
 	defer job.logMu.Unlock()
 	job.logOutput([]string{line})
+}
+
+func (job *Job) dockerExecArgs() []string {
+	args := []string{"exec"}
+	if job.ContainerUser != "" {
+		args = append(args, "-u", job.ContainerUser)
+	}
+	return args
 }
 
 
