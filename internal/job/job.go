@@ -391,6 +391,7 @@ LOOP:
 			arrayOutput = append(arrayOutput, output)
 			job.logOutput(arrayOutput)
 		}
+		job.SetStatus(STATUS_SLEEP)
 		job.Sleep(job.OwnContext)
 		currentSleep := job.GetCurrentSleepTime()
 		sleepIncrement := job.GetSleepIncrement()
