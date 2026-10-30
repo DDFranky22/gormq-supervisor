@@ -297,6 +297,14 @@ LOOP:
 					defer cancelCommandContext()
 				}
 				cmd := exec.CommandContext(commandContext, app, minusApp...)
+				cmd.Cancel = func() error {
+					return	killProcess(cmd)
+				}
+
+				cmd.SysProcAttr= &syscall.SysProcAttr{
+					Setpgid: true,
+				}
+
 				if job.WorkingDir != "" {
 					absolutePath, error := filepath.Abs(job.WorkingDir)
 					if error != nil {
@@ -306,7 +314,6 @@ LOOP:
 					cmd.Dir = absolutePath
 				}
 				if runningUserId != 0 && runningUserMainGroup != 0 {
-					cmd.SysProcAttr = &syscall.SysProcAttr{}
 					cmd.SysProcAttr.Credential = &syscall.Credential{
 						Uid:         runningUserId,
 						Gid:         runningUserMainGroup,

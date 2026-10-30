@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os/exec"
+	"syscall"
 	"text/tabwriter"
 )
 
@@ -74,7 +76,7 @@ func (jobKiller *JobKiller) KillAll() {
 		if jobKiller.Jobs[i].GetPID() != 0 {
 			cmd := jobKiller.Jobs[i].GetCmdExecutable()
 			if cmd != nil && cmd.Process != nil {
-				err := cmd.Process.Kill()
+				err := killProcess(cmd)
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -135,4 +137,19 @@ func (jobKiller *JobKiller) FindJobByName(jobName string) (*Job, error) {
 		return jobToReturn, nil
 	}
 	return nil, errors.New("Cannot find job with provided name")
+}
+
+func killProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+
+	err := syscall.Kill(
+		-cmd.Process.Pid,
+		syscall.SIGKILL
+	)
+	if err == syscall.ESRCH {
+		return nil
+	}
+	return err
 }
