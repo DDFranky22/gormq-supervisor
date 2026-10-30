@@ -48,7 +48,7 @@ type Job struct {
 	StartedAt         int64
 	OwnContext        context.Context
 	OwnContextCancel  context.CancelFunc
-	Log		  logger.Logger
+	Log		          *logger.Logger
 	mu                sync.RWMutex // protects concurrent access to mutable fields
 	logMu		      sync.Mutex
 	TestMode		  bool
@@ -332,6 +332,9 @@ LOOP:
 					absolutePath, error := filepath.Abs(job.WorkingDir)
 					if error != nil {
 						job.Log.Printf("For job: \"%v\" the directory \"%v\" does not exists. Cannot be executed\n", job.Name, job.WorkingDir)
+						if cancelCommandContext != nil {
+							cancelCommandContext()
+						}
 						break LOOP
 					}
 					cmd.Dir = absolutePath
@@ -357,6 +360,9 @@ LOOP:
 				startErr := cmd.Start()
 				if startErr != nil {
 					job.Log.Printf("For job: \"%v\" the command: \"%v\" cannot be executed. Output: %v\n", job.Name, job.Command, startErr)
+					if cancelCommandContext != nil {
+						cancelCommandContext()
+					}
 					break LOOP
 				}
 				now := time.Now()

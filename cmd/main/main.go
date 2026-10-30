@@ -123,7 +123,7 @@ func worker(configuration config.ConfigFile) {
 		configuration.Jobs[j].ConnectionConfig = *connectionConfig
 		configuration.Jobs[j].MainPid = mainPid
 		configuration.Jobs[j].OwnContext, configuration.Jobs[j].OwnContextCancel = context.WithCancel(mainContext)
-		configuration.Jobs[j].Log = log
+		configuration.Jobs[j].Log = &log
 		configuration.Jobs[j].TestMode = *testMode
 		go configuration.Jobs[j].ExecuteCommand(&wg)
 		jobKiller.Jobs = append(jobKiller.Jobs, &configuration.Jobs[j])
@@ -294,5 +294,5 @@ func buildVersion() string {
 	if modified {
 		revision += "-dirty"
 	}
-	return " (" + revision + ")"
+	return "(" + revision + ")"
 }
